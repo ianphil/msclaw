@@ -1,0 +1,109 @@
+# Bootstrap Flow: `--new-mind /path`
+
+```
+msclaw --new-mind /path/to/new/mind
+         │
+         ▼
+┌─────────────────────┐
+│ BootstrapOrchestrator│
+│   .Run(args)        │
+└────────┬────────────┘
+         │ parse CLI args
+         ▼
+┌─────────────────────┐
+│ Path.GetFullPath()  │  resolve to absolute
+└────────┬────────────┘
+         ▼
+┌─────────────────────┐
+│ MindScaffold        │
+│   .Scaffold(path)   │
+└────────┬────────────┘
+         │
+    ┌────┴────┐
+    │         │
+  empty/    non-empty
+  new dir   dir exists
+    │         │
+    │         ▼
+    │    ┌──────────────┐
+    │    │ throw        │
+    │    │ InvalidOp    │
+    │    │ "dir exists" │
+    │    └──────────────┘
+    ▼
+┌─────────────────────┐
+│ Create structure:   │
+│                     │
+│ SOUL.md       ← embedded resource
+│ bootstrap.md  ← embedded resource
+│ .working-memory/    │
+│   memory.md         │
+│   rules.md          │
+│   log.md            │
+│ .github/agents/     │
+│ .github/skills/     │
+│ domains/            │
+│ initiatives/        │
+│ expertise/          │
+│ inbox/              │
+│ Archive/            │
+└────────┬────────────┘
+         ▼
+┌─────────────────────┐
+│ MindValidator       │
+│   .Validate(path)   │
+└────────┬────────────┘
+         │ (always valid — just scaffolded)
+         ▼
+┌─────────────────────┐
+│ ConfigPersistence   │
+│   .Save(config)     │  ~/.msclaw/config.json
+└────────┬────────────┘
+         ▼
+┌─────────────────────┐
+│ BootstrapResult     │
+│  MindRoot: /path    │
+│  IsNewMind: true    │
+│  HasBootstrapMarker:│
+│    true             │
+└────────┬────────────┘
+         ▼
+┌─────────────────────┐
+│ Program.cs          │
+│  Override MindRoot  │
+│  Register services  │
+│  Build + Run Kestrel│
+└────────┬────────────┘
+         ▼
+    ┌────┴────────┐
+    │  /chat      │
+    │  (1st req)  │
+    └────┬────────┘
+         │
+         ▼
+  bootstrap.md exists
+         │
+         ▼
+┌─────────────────────┐
+│ Bootstrap Mode      │
+│                     │
+│ Phase 1: Identity   │
+│  → customize SOUL.md│
+│                     │
+│ Phase 2: Agent File │
+│  → create .github/  │
+│    agents/{name}    │
+│    .agent.md        │
+│                     │
+│ Phase 3: Memory     │
+│  → seed .working-   │
+│    memory/ files    │
+│                     │
+│ Delete bootstrap.md │
+└────────┬────────────┘
+         │
+         ▼
+   Mind is live 🟢
+   (subsequent /chat
+    runs normally)
+```
