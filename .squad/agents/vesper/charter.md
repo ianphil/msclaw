@@ -33,8 +33,8 @@
 
 ## Model
 
-- **Preferred:** auto
-- **Rationale:** Coordinator selects the best model based on task type — cost first unless writing code
+- **Preferred:** gpt-5.3-codex
+- **Rationale:** Code specialist for systems integration, startup lifecycle, and filesystem operations
 - **Fallback:** Standard chain — the coordinator handles fallback automatically
 
 ## Collaboration

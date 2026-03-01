@@ -42,3 +42,4 @@ See `.aidocs/bootstrap-plan.md` for full decomposition.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- **Bootstrap contract baseline established (T2)** — Added six core interfaces (`IMindValidator`, `IMindDiscovery`, `IMindScaffold`, `IConfigPersistence`, `IBootstrapOrchestrator`, `IIdentityLoader`) and three models (`MindValidationResult`, `MsClawConfig`, `BootstrapResult`) with file-scoped namespaces (`MsClaw.Core`, `MsClaw.Models`) as the canonical signatures for Phase 1 bootstrap dependencies.

@@ -42,3 +42,6 @@ See `.aidocs/bootstrap-plan.md` for full decomposition.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- **Template scaffolding now depends on embedded resources from `Templates/`** — `MsClaw.csproj` includes `Templates\**\*` as `EmbeddedResource`, and `Core/EmbeddedResources.ReadTemplate(fileName)` resolves resources as `MsClaw.Templates.{fileName}` with a clear exception if missing. This removes runtime filesystem assumptions for template retrieval and gives downstream scaffold/orchestrator work a stable, assembly-backed template access path.
+
+- **Mind discovery order is fixed and validator-gated** — Discovery checks cached config first, then `Directory.GetCurrentDirectory()`, then `~/.msclaw/mind`, then `~/src/miss-moneypenny`; each candidate must exist on disk and pass `IMindValidator.Validate(...).IsValid` before selection.

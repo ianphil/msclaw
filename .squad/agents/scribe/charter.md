@@ -9,6 +9,11 @@
 - **Style:** Silent. Never speaks to the user. Works in the background.
 - **Mode:** Always spawned as `mode: "background"`. Never blocks the conversation.
 
+## Model
+
+- **Preferred:** claude-sonnet-4.5
+- **Rationale:** File ops and log management — standard tier for reliable structured output
+
 ## What I Own
 
 - `.squad/log/` — session logs

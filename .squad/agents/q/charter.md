@@ -35,8 +35,8 @@
 
 ## Model
 
-- **Preferred:** auto
-- **Rationale:** Coordinator selects the best model based on task type — cost first unless writing code
+- **Preferred:** claude-opus-4.6
+- **Rationale:** Lead/Architect needs premium reasoning for architecture proposals, code review, and multi-agent coordination
 - **Fallback:** Standard chain — the coordinator handles fallback automatically
 
 ## Collaboration

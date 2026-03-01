@@ -13,3 +13,5 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+- 2026-03-01: Test infrastructure now includes `tests/MsClaw.Tests` with xUnit + NSubstitute on .NET 9 and a solution entry in `MsClaw.sln`.
+- 2026-03-01: `TempMindFixture` is the shared helper for creating disposable mind directory structures (`valid`, `minimal`, `empty`) under temp paths for filesystem-focused tests.

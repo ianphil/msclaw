@@ -117,3 +117,10 @@
 **Impact:** All plan and squad files updated to Rev 2.1. Validator, scaffold, and all references now use `.working-memory/` as canonical.
 
 ---
+
+## 2026-03-01T05:27:05Z: User Directive — Team Model Specification
+
+**By:** Ian Philpot (via Copilot)  
+**What:** Felix, Vesper, and Natalya should use gpt-5.3-codex model for implementation work. Q uses claude-opus-4.6 for architecture/planning.  
+**Why:** User request — captured for team memory. Specifies model selection for parallel team execution.  
+**Impact:** All implementation agents spawned with gpt-5.3-codex. Architectural decisions use Opus 4.6.

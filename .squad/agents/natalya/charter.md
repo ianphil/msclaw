@@ -35,8 +35,8 @@
 
 ## Model
 
-- **Preferred:** auto
-- **Rationale:** Coordinator selects the best model based on task type — cost first unless writing code
+- **Preferred:** gpt-5.3-codex
+- **Rationale:** Code specialist for writing test code, edge cases, and E2E validation
 - **Fallback:** Standard chain — the coordinator handles fallback automatically
 
 ## Collaboration

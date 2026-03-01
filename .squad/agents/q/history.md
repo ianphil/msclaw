@@ -107,3 +107,31 @@
 **What changed:** All plan and squad files corrected. Bootstrap plan updated to Rev 2.1.
 
 **Learning:** User directive: `.working-memory/` is canonical, not `.ainotes/`. Roadmap naming wins. The guide's memory file semantics (memory.md, rules.md, log.md) still apply — they just live in `.working-memory/`, not `.ainotes/`.
+
+---
+
+### 2026-03-01 — Bootstrap Spec v5.0 Implementation Plan
+
+**Context:** Read `.aidocs/bootstrap-spec.md` (Rev 5.0) and created concrete implementation plan for the squad.
+
+**Decisions resolved:**
+- D1: Fail-fast on missing mind (exit with error, no degraded mode)
+- D2: Config at `~/.msclaw/config.json` (user-global)
+- D3: Discovery order: explicit CLI → cached config → convention search
+
+**Plan structure:**
+- 12 tasks (T1–T12) across Felix (backend), Vesper (systems), Natalya (tests)
+- 6 new interfaces: IMindValidator, IMindDiscovery, IMindScaffold, IConfigPersistence, IBootstrapOrchestrator, IIdentityLoader
+- 3 new models: MindValidationResult, MsClawConfig, BootstrapResult
+- 19 new files, 4 modified files (including new test project)
+- 4-day schedule with Day 1 fully parallel (3 tracks)
+- Key integration point: T9 (Program.cs) wires everything together
+
+**Key architecture decisions in this plan:**
+- BootstrapOrchestrator runs before Kestrel starts — resolves mind root synchronously
+- IdentityLoader replaces the private LoadAgentInstructionsAsync in CopilotRuntimeClient — composes SOUL.md + agent files
+- Bootstrap detection is in /chat endpoint — checks for bootstrap.md presence
+- MindScaffold copies templates from embedded resources, not from filesystem paths
+- MindValidator returns structured result (errors/warnings/found), not bool
+
+**Artifact:** `.squad/decisions/inbox/q-bootstrap-spec-plan.md`
