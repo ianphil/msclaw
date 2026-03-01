@@ -124,3 +124,29 @@
 **What:** Felix, Vesper, and Natalya should use gpt-5.3-codex model for implementation work. Q uses claude-opus-4.6 for architecture/planning.  
 **Why:** User request — captured for team memory. Specifies model selection for parallel team execution.  
 **Impact:** All implementation agents spawned with gpt-5.3-codex. Architectural decisions use Opus 4.6.
+
+---
+
+## 2026-03-01T05:39:12Z: Decision — Nullable BootstrapOrchestrator Return for Reset Flow
+
+**By:** Vesper  
+**Requested by:** Ian Philpot  
+**Scope:** `IBootstrapOrchestrator` + `BootstrapOrchestrator`
+
+### Decision
+
+Use a nullable return contract for bootstrap orchestration:
+
+- Update interface to `BootstrapResult? Run(string[] args);`
+- For `--reset-config`, clear persisted config, print `Config cleared.` to stdout, and return `null`
+- Leave process termination responsibility to `Program.cs`
+
+### Why
+
+Direct `Environment.Exit(...)` inside orchestration logic is difficult to test and mixes flow-control concerns into a service class. Returning `null` for the reset path provides a clean sentinel that allows callers to terminate cleanly while keeping orchestration behavior unit-testable.
+
+### Consequences
+
+- Callers must treat `null` as "bootstrap handled; exit 0"
+- Non-null results still represent a resolved/validated mind root for normal startup
+- Validation and usage failures continue to throw `InvalidOperationException` with detailed messages
