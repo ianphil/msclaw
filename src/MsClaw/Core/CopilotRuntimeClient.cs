@@ -8,16 +8,24 @@ namespace MsClaw.Core;
 public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
 {
     private readonly MsClawOptions _options;
+    private readonly IIdentityLoader _identityLoader;
 
-    public CopilotRuntimeClient(IOptions<MsClawOptions> options)
+    public CopilotRuntimeClient(IOptions<MsClawOptions> options, IIdentityLoader identityLoader)
     {
         _options = options.Value;
+        _identityLoader = identityLoader;
     }
 
     public async Task<string> GetAssistantResponseAsync(IReadOnlyList<SessionMessage> messages, CancellationToken cancellationToken = default)
     {
         var mindRoot = Path.GetFullPath(_options.MindRoot);
-        var agentInstructions = await LoadAgentInstructionsAsync(mindRoot, _options.AgentName, cancellationToken);
+        var systemMessage = await _identityLoader.LoadSystemMessageAsync(mindRoot, cancellationToken);
+        var bootstrapPath = Path.Combine(mindRoot, "bootstrap.md");
+        if (File.Exists(bootstrapPath))
+        {
+            var bootstrapInstructions = await File.ReadAllTextAsync(bootstrapPath, cancellationToken);
+            systemMessage = bootstrapInstructions + "\n\n---\n\n" + systemMessage;
+        }
 
         await using var client = new CopilotClient(new CopilotClientOptions
         {
@@ -37,7 +45,7 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
             SystemMessage = new SystemMessageConfig
             {
                 Mode = SystemMessageMode.Replace,
-                Content = agentInstructions
+                Content = systemMessage
             }
         }, cancellationToken);
 
@@ -74,29 +82,6 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
         }
 
         return assistantMessage;
-    }
-
-    private static async Task<string> LoadAgentInstructionsAsync(string mindRoot, string agentName, CancellationToken cancellationToken)
-    {
-        var agentFile = Path.Combine(mindRoot, ".github", "agents", $"{agentName}.agent.md");
-        if (!File.Exists(agentFile))
-        {
-            throw new FileNotFoundException($"Agent file not found: {agentFile}");
-        }
-
-        var content = await File.ReadAllTextAsync(agentFile, cancellationToken);
-
-        // Strip YAML frontmatter — the SDK doesn't parse it
-        if (content.StartsWith("---"))
-        {
-            var endIndex = content.IndexOf("---", 3, StringComparison.Ordinal);
-            if (endIndex > 0)
-            {
-                content = content[(endIndex + 3)..].TrimStart();
-            }
-        }
-
-        return content;
     }
 
     private static string BuildPrompt(IReadOnlyList<SessionMessage> messages)
