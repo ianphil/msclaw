@@ -59,22 +59,23 @@ extensions/<name>/
 
 ### Registration API
 
-Extensions register capabilities through `IMsClawPluginApi`:
+Extensions register capabilities through `IMsClawPluginApi` (the **core** plugin API):
 
 | Method | What it registers |
 |--------|------------------|
 | `RegisterTool()` | Agent-callable tool/action |
-| `RegisterChannel()` | Chat channel adapter (gateway consumer) |
 | `RegisterHook()` | Lifecycle event handler |
 | `RegisterService()` | Long-running background service |
 | `RegisterCommand()` | Direct command (bypasses LLM) |
 | `RegisterHttpRoute()` | Additional HTTP endpoint |
 
+Note: `RegisterChannel()` is **not** on this interface — it lives on the gateway's own plugin API (see Phase 3). This avoids a coupling leak where core would need to import channel types for something only the gateway manages.
+
 ### Tasks
 
 - [ ] **Study OpenClaw's `register()` flow** — How do callbacks wire into the runtime loop? What's the lifecycle (load → validate → register → start → stop)? Map this onto .NET DI patterns.
 - [ ] **Define `IExtension` interface** — The contract every extension implements. At minimum: `Id`, `Name`, `Version`, `Register(IMsClawPluginApi api)`, `Start()`, `Stop()`.
-- [ ] **Build `IMsClawPluginApi`** — The API object passed to extensions during registration. Implements RegisterTool, RegisterHook, RegisterChannel, etc.
+- [ ] **Build `IMsClawPluginApi`** — The core API object passed to extensions during registration. Implements RegisterTool, RegisterHook, RegisterService, RegisterCommand, RegisterHttpRoute. Does NOT include RegisterChannel (that's the gateway's API — see Phase 3).
 - [ ] **Extension loader** — Discover extensions from a configured directory, validate plugin.json, instantiate, call Register(). Consider: assembly loading, config injection, dependency ordering.
 - [ ] **Refactor MindReader as first extension** — Currently hardwired. Move it behind the extension API as a proof-of-concept: registers `read_file` and `list_directory` as tools.
 - [ ] **Hook system** — Lifecycle events: `session:create`, `session:resume`, `session:end`, `message:received`, `message:sent`, `agent:bootstrap`. Extensions subscribe via `RegisterHook()`.
@@ -88,7 +89,7 @@ Extensions register capabilities through `IMsClawPluginApi`:
 
 ### What This Unlocks
 
-- Gateway registers as an extension (not baked into core)
+- Gateway registers with core as a service (decoupled, but not a generic extension — it owns its own channel subsystem)
 - Third-party or user-defined tools without modifying MsClaw source
 - The hook system enables heartbeat, morning briefings, and proactive behaviors
 
@@ -96,16 +97,19 @@ Extensions register capabilities through `IMsClawPluginApi`:
 
 ## Phase 3: Gateway & Channels
 
-**Goal:** Channel-agnostic message routing. The gateway sits between inbound channels (Telegram, CLI, future: Discord, web, etc.) and the agent core. First channel: Telegram (the [[Miss Moneypenny's Cellphone]] initiative).
+**Goal:** Channel-agnostic message routing. The gateway is a **self-contained subsystem that owns channels** — managing their lifecycle, routing, and format conversion. It registers with core as a service but manages its own plugin surface internally. First channel: Telegram (the [[Miss Moneypenny's Cellphone]] initiative).
 
 **What exists today:** A single HTTP endpoint (`POST /chat`) that takes a message and returns a response. No channel abstraction, no message routing, no format conversion.
 
 ### Architecture
 
+The gateway owns channels. Channel extensions register with the gateway via `RegisterChannel()` — a gateway-internal API, not the core plugin API. Once registered, the `ChannelManager` handles all lifecycle management. Core never imports channel types.
+
 ```
 Channel (Telegram, CLI, ...)
     ↓ inbound message
-Gateway
+Gateway (registers with core as a service)
+    ├── ChannelManager (start/stop/restart/health per channel)
     ├── Sanitize input
     ├── Resolve session (channel + user → session ID)
     ├── Route to agent core
@@ -115,9 +119,11 @@ Gateway
 Channel
 ```
 
+**Two-tier API design:** Most extensions (mind-reader, GitHub, heartbeat) only use the core plugin API (`RegisterTool`, `RegisterHook`, etc.). Channel extensions only use the gateway's API (`RegisterChannel`). A channel extension *may* also use core hooks, but it never needs to — the boundary is clean.
+
 ### Channel Contract
 
-Each channel adapter implements `IChannelPlugin` (registered via the extension system):
+Each channel adapter implements `IChannelPlugin` (registered with the gateway, not core):
 
 | Concern | What it handles |
 |---------|----------------|
@@ -128,13 +134,24 @@ Each channel adapter implements `IChannelPlugin` (registered via the extension s
 | **Auth** | DM policy, allowlist enforcement |
 | **Formatting** | Markdown → channel-native format (Telegram HTML, Discord markdown, etc.) |
 
+### ChannelManager
+
+Gateway-internal lifecycle controller (modeled after OpenClaw's `server-channels.ts`):
+
+- Start/stop channels per account
+- Auto-restart with exponential backoff on failure
+- Health monitoring and state tracking (enabled/disabled/configured/running)
+- Manual stop tracking (don't auto-restart manually stopped channels)
+
 ### Tasks
 
-- [ ] **Design `IChannelPlugin` interface** — The contract for channel adapters. Builds on OpenClaw's pattern, registered via the extension system's `RegisterChannel()`.
-- [ ] **Build gateway routing** — Inbound dispatch: sanitize → resolve session → route to core. Outbound dispatch: format → chunk → deliver. The gateway itself is an extension.
+- [ ] **Define `IChannelPlugin` interface** — The contract for channel adapters. Gateway-internal, not on the core plugin API. Config, inbound, outbound, lifecycle, auth, formatting concerns.
+- [ ] **Build `ChannelManager`** — Lifecycle controller: start/stop/restart with backoff, health monitoring, account state tracking. Informed by OpenClaw's `createChannelManager()`.
+- [ ] **Build gateway routing** — Inbound: sanitize → resolve session → route to core. Outbound: format → chunk → deliver. Gateway registers with core as a service via `RegisterService()`.
+- [ ] **Gateway plugin API** — `RegisterChannel()` as the handoff seam. Channel extensions call this; `ChannelManager` takes ownership from there.
 - [ ] **Session routing** — Map channel+user to a session. A Telegram user gets a persistent session; multiple channels for the same user could share or isolate sessions (configurable).
 - [ ] **Message format normalization** — Common internal format that channels convert to/from. Rich content (images, code blocks, links) needs to survive the round trip.
-- [ ] **Build Telegram adapter** — First channel. Leverage the [[Miss Moneypenny's Cellphone]] research (seedprod POC, Telegram Bot API). Register as a channel extension.
+- [ ] **Build Telegram adapter** — First channel. Leverage the [[Miss Moneypenny's Cellphone]] research (seedprod POC, Telegram Bot API). Registers via gateway's `RegisterChannel()`.
 - [ ] **Chunking strategy** — Telegram has a 4096-char message limit. Long responses need intelligent splitting (not mid-sentence, preserve code blocks).
 - [ ] **Allowlist / auth** — Who can talk to the agent? At minimum: a configurable allowlist of Telegram user IDs. No open access.
 - [ ] **Decide hosting strategy** — Channels require always-on. Home server? Cloud VM? Container? This decision gates whether Telegram actually works day-to-day.
@@ -145,7 +162,7 @@ Each channel adapter implements `IChannelPlugin` (registered via the extension s
 2. Conversations persist across messages (session continuity per Telegram user)
 3. Long responses are chunked intelligently
 4. Only allowlisted users can interact
-5. The gateway is an extension, not hardwired — a second channel could be added without modifying gateway code
+5. Adding a second channel means writing a new `IChannelPlugin` and calling `RegisterChannel()` — no gateway or core modifications needed
 
 ### What This Unlocks
 

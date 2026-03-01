@@ -7,3 +7,4 @@
 - architecture: bootstrap.md in scaffolded mind drives the LLM conversation; agent deletes it when done
 - architecture: IdentityLoader needs upgrade to compose SOUL.md + .github/agents/*.agent.md into system message
 - convention: `.working-memory/` is the canonical memory directory name for MsClaw minds
+- documentation: Created comprehensive code walkthrough (docs/msclaw-walkthrough.md) using Showboat with real verified code snippets covering all 12 major components (boot, discovery, validation, loading, sessions, runtime client, scaffolding, persistence, models, orchestration, request flow, architecture summary)
