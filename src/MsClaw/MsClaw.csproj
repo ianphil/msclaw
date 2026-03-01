@@ -10,4 +10,8 @@
     <PackageReference Include="GitHub.Copilot.SDK" Version="0.1.29" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Templates\**\*" />
+  </ItemGroup>
+
 </Project>
