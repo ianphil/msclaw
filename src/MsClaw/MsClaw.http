@@ -1,0 +1,15 @@
+@host = http://localhost:5050
+
+### Health check
+GET {{host}}/health
+
+### Send a chat message
+POST {{host}}/chat
+Content-Type: application/json
+
+{
+  "message": "write this convo to your handover and I'll switch back to our chat from msclaw"
+}
+
+### Start a new session
+POST {{host}}/session/new
