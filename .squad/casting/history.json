@@ -1,0 +1,22 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "James Bond",
+      "used_at": "2026-03-01T02:15:00Z",
+      "repo": "msclaw"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "msclaw-2026-03-01": {
+      "assignment_id": "msclaw-2026-03-01",
+      "universe": "James Bond",
+      "created_at": "2026-03-01T02:15:00Z",
+      "agents": {
+        "q": "Q",
+        "felix": "Felix",
+        "vesper": "Vesper",
+        "natalya": "Natalya"
+      }
+    }
+  }
+}
