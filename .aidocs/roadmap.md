@@ -4,51 +4,40 @@ Three phases, in order. Each builds on the last.
 
 ---
 
-## Phase 1: Bootstrap / Mind Discovery
+## Phase 1: Bootstrap / Mind Discovery ✅
+
+**Status:** Complete — implemented in `feature/bootstrap-spec` branch.
 
 **Goal:** Replace the `MIND_ROOT` env var with a proper first-run experience. MsClaw becomes a framework — not just a hardwired instance.
 
-**What exists today:** `IdentityLoader` reads SOUL.md from a path set via `appsettings.json` / env var. No first-run detection, no scaffolding, no validation beyond "file not found."
+### What Was Built
 
-### Boot Modes
+- **CLI argument parsing** — `--mind <path>`, `--new-mind <path>`, `--reset-config`
+- **MindValidator** — Validates SOUL.md and .working-memory/ (errors), other IDEA dirs (warnings)
+- **MindDiscovery** — Convention-based search: cached config → cwd → `~/.msclaw/mind` → `~/src/miss-moneypenny`
+- **MindScaffold** — Generates new mind from embedded SOUL.md and bootstrap.md templates
+- **ConfigPersistence** — Saves resolved mind root to `~/.msclaw/config.json`
+- **IdentityLoader** — Composes SOUL.md + `.github/agents/*.agent.md` into system message
+- **BootstrapOrchestrator** — Coordinates the full bootstrap flow before Kestrel starts
+- **Bootstrap detection** — If `{mindRoot}/bootstrap.md` exists, its content is prepended to the system message
 
-1. **Point at existing mind** — User provides a path (or MsClaw discovers one via convention). Validate: does it have `SOUL.md`? `.working-memory/`? IDEA folders? Report what's found, what's missing, and whether the mind is usable.
+### Key Decisions
 
-2. **Scaffold fresh** — No mind found (or user requests it). Create a new mind directory with starter structure:
-   ```
-   {mind_root}/
-     SOUL.md                    ← blank template ("Who are you?")
-     .working-memory/
-       memory.md                ← empty
-       rules.md                 ← empty
-       log.md                   ← empty
-     domains/
-     initiatives/
-     expertise/
-     inbox/
-     Archive/
-   ```
+- `BootstrapOrchestrator.Run()` returns `BootstrapResult?` — null signals `--reset-config` (exit cleanly)
+- SOUL.md template vendored from OpenClaw pinned commit `0f72000c`
+- SOUL.md and `.working-memory/` missing = validation error; other dirs missing = warning only
+- ConfigPersistence uses instance `_configPath` (not static) for test isolation
 
-### Tasks
+### Tests
 
-- [ ] **Design bootstrap flow** — First-run detection: does the configured mind root exist and pass validation? If not, offer scaffold or reconfigure. Consider: CLI flags (`--mind-root <path>`, `--scaffold <path>`) vs interactive prompt vs config file.
-- [ ] **Mind validation** — Check for SOUL.md, .working-memory/, IDEA folders. Return a structured result (found/missing/warnings) rather than just pass/fail. IdentityLoader already does basic "file not found" — extend into a proper `MindValidator`.
-- [ ] **Convention-based discovery** — Look for a mind at well-known locations (current dir, `~/.msclaw/mind`, configured path) before falling back to "not found." This replaces the env var as the primary mechanism.
-- [ ] **Scaffold mode** — Generate starter IDEA structure + blank SOUL.md. The templates already exist conceptually in `miss-moneypenny` — formalize them as the default scaffold.
-- [ ] **Configuration persistence** — Once a mind root is resolved (pointed or scaffolded), persist it so subsequent runs don't re-prompt. `appsettings.json`, a dotfile, or `~/.msclaw/config.json`.
+33 tests (unit + integration), all passing.
 
-### Success Criteria
+### Success Criteria — Met
 
-1. `dotnet run` with no config → detects no mind → offers to scaffold or configure
-2. `dotnet run --mind-root ~/src/miss-moneypenny` → validates the mind → starts serving
-3. `dotnet run --scaffold ~/src/my-new-agent` → creates IDEA structure → starts serving
-4. After first successful run, subsequent `dotnet run` remembers the mind root
-
-### What This Unlocks
-
-- Anyone can `dotnet run` MsClaw and get a working agent — not just Ian
-- The "framework vs instance" distinction becomes real at the code level
-- Extensions and gateway both inherit proper mind resolution
+1. ✅ `dotnet run -- --mind ~/src/ernist` → validates the mind → starts serving
+2. ✅ `dotnet run -- --new-mind ~/src/new-agent` → scaffolds IDEA structure → starts serving
+3. ✅ Subsequent `dotnet run` remembers the mind root via `~/.msclaw/config.json`
+4. ✅ No config + no discoverable mind → clear error with usage message
 
 ---
 
