@@ -53,14 +53,14 @@
 
 ### Key Discoveries from Guide
 
-1. **`.ainotes/` is the canonical memory system**, not `.working-memory/`:
+1. **`.working-memory/` is the canonical memory system** with defined file purposes:
    - `memory.md` — Curated long-term memory, read every session
    - `rules.md` — Mistake journal, one-liners that compound
    - `log.md` — Raw chronological, append-only
    - Consolidation every ~14 days
 
 2. **Mind ≠ Host Repo:**
-   - Mind = SOUL.md + .ainotes/ + IDEA folders (domains/, initiatives/, expertise/, inbox/, Archive/)
+   - Mind = SOUL.md + .working-memory/ + IDEA folders (domains/, initiatives/, expertise/, inbox/, Archive/)
    - Host repo = .github/agents/{name}.agent.md + .github/skills/{name}/SKILL.md
    - Scaffold creates the mind; guide adds host repo awareness
 
@@ -68,8 +68,8 @@
 
 ### Phase 1a — Automated Infrastructure (Current Plan, Tasks T1–T8)
 - Delivers roadmap's 4 success criteria
-- Scaffold creates full mind structure with `.ainotes/` (memory.md, rules.md, log.md pre-seeded)
-- Validator checks `.ainotes/` as required directory
+- Scaffold creates full mind structure with `.working-memory/` (memory.md, rules.md, log.md pre-seeded)
+- Validator checks `.working-memory/` as required directory
 - Orchestrator supports `--mind-root`, `--scaffold`, `--interactive`, `--reset-config`
 - SOUL.md template dropped verbatim (no interactive customization yet)
 - No host repo awareness
@@ -86,8 +86,8 @@
 
 | Task | Change | Reason |
 |------|--------|--------|
-| T3 (Validator) | Check `.ainotes/` as required dir, check sub-files as warnings | Guide defines `.ainotes/` as memory system |
-| T5 (Scaffold) | Create `.ainotes/` with purpose-seeded files, remove `.github/` scaffolding | Mind ≠ host repo; files have defined purposes |
+| T3 (Validator) | Check `.working-memory/` as required dir, check sub-files as warnings | Roadmap defines `.working-memory/` as memory system |
+| T5 (Scaffold) | Create `.working-memory/` with purpose-seeded files, remove `.github/` scaffolding | Mind ≠ host repo; files have defined purposes |
 | T6 (Orchestrator) | Design extensible mode system for Phase 1b `--guided` | Avoid rewriting when walkthrough is added |
 
 ### Decision: D5 — Phase 1a/1b Split
@@ -105,6 +105,15 @@
 **By:** Ian Philpot (via Copilot)  
 **What:** The mind bootstrap flow should follow the "Building an Agent with Attitude" guide (https://raw.githubusercontent.com/ianphil/public-notes/refs/heads/main/expertise/agent-craft/building-an-agent-with-attitude.md). This is a 6-phase interactive walkthrough.  
 **Why:** User request — this is the design intent for Phase 1. Expands scaffold concept from "create empty dirs" to "interactive agent-building workshop."  
-**Impact:** Affects Phase 1b design (future), validates Phase 1a foundation with `.ainotes/` as memory system.
+**Impact:** Affects Phase 1b design (future), validates Phase 1a foundation with `.working-memory/` as memory system.
+
+---
+
+## 2026-03-01T03:52:41Z: User Directive — `.working-memory/` Naming is Canonical
+
+**By:** Ian Philpot (via Copilot)  
+**What:** Do NOT rename `.working-memory/` to `.ainotes/`. The "Building an Agent with Attitude" guide uses `.ainotes/` for its own pattern, but MsClaw's roadmap (`.aidocs/roadmap.md`) naming is authoritative. The guide's memory file semantics (memory.md, rules.md, log.md with defined purposes) still apply — they just live in `.working-memory/`.  
+**Why:** User request — corrects Q's reassessment (Rev 2.0) which incorrectly proposed renaming to `.ainotes/` based on the external guide.  
+**Impact:** All plan and squad files updated to Rev 2.1. Validator, scaffold, and all references now use `.working-memory/` as canonical.
 
 ---

@@ -9,8 +9,8 @@
 ## Summary
 
 Q received Ian's directive to align bootstrap with the "Building an Agent with Attitude" guide. Key discoveries:
-- `.ainotes/` is the canonical memory system (memory.md, rules.md, log.md)
-- Mind ≠ host repo (SOUL.md + .ainotes/ vs .github/agents/ + .github/skills/)
+- `.working-memory/` is the canonical memory system (memory.md, rules.md, log.md)
+- Mind ≠ host repo (SOUL.md + .working-memory/ vs .github/agents/ + .github/skills/)
 - Proposed Phase 1a (automated) + Phase 1b (interactive) split
 
 **Decisions captured:**
@@ -18,8 +18,8 @@ Q received Ian's directive to align bootstrap with the "Building an Agent with A
 - User directive 2026-03-01T03:44:07Z: Align with guide's 6-phase workflow
 
 **Task updates:**
-- T3 (Validator): Check `.ainotes/` (not `.working-memory/`)
-- T5 (Scaffold): Create `.ainotes/` with purpose-seeded files
+- T3 (Validator): Check `.working-memory/` as required directory
+- T5 (Scaffold): Create `.working-memory/` with purpose-seeded files
 - T6 (Orchestrator): Design extensible mode system for Phase 1b `--guided`
 
 **Cross-agent updates:** Felix and Vesper history.md files updated with new learning.

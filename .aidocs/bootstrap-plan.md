@@ -4,16 +4,16 @@
 **Owner:** Q (Lead / Architect)  
 **Audience:** Ian Philpot, Felix (backend dev), Vesper (systems dev)  
 **Date:** 2026-03-01  
-**Revision:** 2.0 (2026-03-01 — reassessed per "Building an Agent with Attitude" guide)
+**Revision:** 2.1 (2026-03-01 — corrected `.ainotes/` back to `.working-memory/` per user directive)
 
 ---
 
-> **⚠️ Revision 2.0 — What Changed**
+> **⚠️ Revision 2.1 — What Changed**
 >
-> Ian shared the "Building an Agent with Attitude" guide (saved at `.aidocs/bootstrap-guide-reference.md`), a 6-phase interactive walkthrough that redefines what "bootstrap" means. Key shifts:
+> Rev 2.0 reassessed against the "Building an Agent with Attitude" guide (saved at `.aidocs/bootstrap-guide-reference.md`). Rev 2.1 corrected `.ainotes/` back to `.working-memory/` per user directive — the roadmap's directory name is authoritative. Key points:
 >
 > 1. **Bootstrap is a guided workshop, not just scaffolding.** The scaffold (T5) creates structure; the orchestrator (T6) walks the user through a conversational 6-phase experience.
-> 2. **`.ainotes/` replaces `.working-memory/`.** Same files (memory.md, rules.md, log.md) but with defined purposes: curated long-term memory, mistake journal, raw chronological log. Consolidation every ~14 days.
+> 2. **`.working-memory/` contains memory.md, rules.md, log.md** with defined purposes from the guide: curated long-term memory, mistake journal, raw chronological log. Consolidation every ~14 days.
 > 3. **Host repo vs mind separation.** The agent file (`.github/agents/`) and skills (`.github/skills/`) live in the HOST REPO, not in the mind directory. The mind holds identity + knowledge; the host holds operational config.
 > 4. **SOUL.md is customized interactively.** The OpenClaw template is the starting point, but Phase 1 of the guide asks 5 questions (Name, Personality, Mission, Boundaries, Tone) and customizes the template.
 > 5. **Phase 1 scope split.** Automated infrastructure (Phase 1a) ships first. The interactive walkthrough (Phase 1b) layers on top. See Scope Decision below.
@@ -41,7 +41,7 @@ Everything the guide needs as a foundation: detect, validate, scaffold, discover
 The guided 6-phase experience from the "Building an Agent with Attitude" guide. This layers on top of Phase 1a:
 - Phase 1 (Identity): Interactive SOUL.md customization (5 questions)
 - Phase 2 (Agent File): `.github/agents/{name}.agent.md` in the HOST REPO
-- Phase 3 (Memory): `.ainotes/` structure (already scaffolded by 1a)
+- Phase 3 (Memory): `.working-memory/` structure (already scaffolded by 1a)
 - Phase 4 (Retrieval): Search tool configuration
 - Phase 5 (First Skill): `.github/skills/{name}/SKILL.md` in the HOST REPO
 - Phase 6 (Knowledge): IDEA folders (already scaffolded by 1a)
@@ -66,14 +66,14 @@ The guided 6-phase experience from the "Building an Agent with Attitude" guide. 
 
 ### What's Missing
 1. **First-run detection** — no way to detect missing/invalid configuration
-2. **Mind validation** — no check for required structure (SOUL.md, .ainotes/, IDEA folders)
+2. **Mind validation** — no check for required structure (SOUL.md, .working-memory/, IDEA folders)
 3. **Convention-based discovery** — no fallback locations (current dir, ~/.msclaw/mind, development conventions)
 4. **Scaffolding** — no way to generate starter structure for new agents
 5. **Configuration persistence** — no mechanism to save resolved mind root
 6. **Bootstrap orchestration** — no coordinator for the full "detect → configure → validate → persist → start" flow
 7. **CLI argument support** — no `--mind-root` or `--scaffold` flags
 8. **Interactive prompts** — no user interaction during bootstrap
-9. **Memory system** — no `.ainotes/` structure with defined file purposes (Phase 1b: interactive seeding)
+9. **Memory system** — no `.working-memory/` structure with defined file purposes (Phase 1b: interactive seeding)
 
 ---
 
@@ -105,20 +105,20 @@ When Phase 1 is complete:
 
 Checks mind structure completeness and reports findings.
 
-> **⚠️ Rev 2.0 change:** Validates `.ainotes/` instead of `.working-memory/`. The `.ainotes/` directory is the memory system from the "Building an Agent with Attitude" guide.
+> Uses `.working-memory/` as defined in the roadmap. Files follow the guide's memory system pattern (memory.md = curated long-term, rules.md = mistake journal, log.md = raw chronological).
 
 **Responsibilities:**
-- Verify required structure exists: `SOUL.md`, `.ainotes/` (with memory.md, rules.md, log.md)
+- Verify required structure exists: `SOUL.md`, `.working-memory/` (with memory.md, rules.md, log.md)
 - Report optional structure: IDEA folders (domains/, initiatives/, expertise/, inbox/, Archive/)
 - Return structured result with errors, warnings, and discovered structure
 
-> **⚠️ Rev 2.0 change:** `.working-memory/` → `.ainotes/`. The guide defines `.ainotes/` as the memory system directory with specific file purposes: `memory.md` (curated long-term, read every session), `rules.md` (mistake journal, one-liners), `log.md` (raw chronological, append-only).
+> `.working-memory/` contains the guide's memory system files: `memory.md` (curated long-term, read every session), `rules.md` (mistake journal, one-liners), `log.md` (raw chronological, append-only).
 
 **Key contract:**
 ```
 Validate(mindRoot: string) → MindValidationResult
   - IsValid: bool
-  - Errors: List<string>       // Blocking issues (SOUL.md missing, .ainotes/ missing, etc.)
+  - Errors: List<string>       // Blocking issues (SOUL.md missing, .working-memory/ missing, etc.)
   - Warnings: List<string>     // Non-blocking (empty SOUL.md, no IDEA folders)
   - Found: MindStructure       // What was discovered
 ```
@@ -156,18 +156,18 @@ DiscoverMinds() → List<string>  // Absolute paths in priority order
 Generate starter mind structure with templates.
 
 **Responsibilities:**
-- Create directory structure (SOUL.md, .ainotes/, IDEA folders, Archive/)
+- Create directory structure (SOUL.md, .working-memory/, IDEA folders, Archive/)
 - Embed SOUL.md template (from OpenClaw reference, verbatim)
 - Handle errors (existing directory, permission issues)
 - Validate scaffold result before reporting success
 
-> **⚠️ Rev 2.0 change:** `.working-memory/` → `.ainotes/`. The scaffold creates `.ainotes/` with seeded files that have header comments explaining their purpose. The `.github/agents/` and `.github/skills/` directories are NOT part of the mind scaffold — they belong to the host repo and are created by the interactive walkthrough (Phase 1b).
+> The scaffold creates `.working-memory/` with seeded files that have header comments explaining their purpose. The `.github/agents/` and `.github/skills/` directories are NOT part of the mind scaffold — they belong to the host repo and are created by the interactive walkthrough (Phase 1b).
 
 **Generated structure:**
 ```
 {mindRoot}/
   SOUL.md                  ← Template from OpenClaw reference (verbatim)
-  .ainotes/
+  .working-memory/
     memory.md              ← Curated long-term memory (read every session)
     rules.md               ← Mistake journal, one-liners that compound
     log.md                 ← Raw chronological observations, append-only
@@ -318,20 +318,20 @@ Implement `IConfigurationPersistence`:
 
 Implement `IMindValidator`:
 - `MindValidator` class checks directory structure
-- Errors: missing SOUL.md, missing .ainotes/
-- Warnings: empty SOUL.md, no IDEA folders found, missing .ainotes/ sub-files (memory.md, rules.md, log.md)
+- Errors: missing SOUL.md, missing .working-memory/
+- Warnings: empty SOUL.md, no IDEA folders found, missing .working-memory/ sub-files (memory.md, rules.md, log.md)
 - Discovers which IDEA folders exist (domains/, initiatives/, expertise/, inbox/, Archive/)
 - Returns `MindValidationResult` with structured findings
 
-> **⚠️ Rev 2.0 change:** `.working-memory/` → `.ainotes/`. The validator checks for `.ainotes/` as a required directory and its three files as warnings if missing.
+> The validator checks for `.working-memory/` as a required directory and its three files as warnings if missing.
 
 **Tests:**
 - Valid mind → IsValid = true, no errors
 - Missing SOUL.md → IsValid = false, error reported
-- Missing .ainotes/ → IsValid = false, error reported
+- Missing .working-memory/ → IsValid = false, error reported
 - Empty SOUL.md → IsValid = true, warning reported
 - No IDEA folders → IsValid = true, warning reported
-- .ainotes/ exists but missing sub-files → IsValid = true, warnings reported
+- .working-memory/ exists but missing sub-files → IsValid = true, warnings reported
 
 **Deliverable:** Structured validation service; used by discovery and scaffold verification.
 
@@ -368,22 +368,22 @@ Implement `IMindScaffold`:
 - **SOUL.md template:** Fetch from OpenClaw reference URL verbatim: `https://raw.githubusercontent.com/openclaw/openclaw/0f72000c96deaf385fc217811f29166ec8f2d815/docs/reference/templates/SOUL.md`
   - Store as embedded resource or hardcoded string in code
   - Replace `{AgentName}` placeholder if provided (from CLI `--scaffold` or interactive prompt)
-- Creates `.ainotes/` with seeded files: memory.md (header: "Curated long-term memory"), rules.md (header: "Mistake journal"), log.md (header: "Raw chronological observations")
+- Creates `.working-memory/` with seeded files: memory.md (header: "Curated long-term memory"), rules.md (header: "Mistake journal"), log.md (header: "Raw chronological observations")
 - Creates IDEA folders: domains/, initiatives/, expertise/, inbox/, Archive/
 - Validates scaffold result through validator before returning success
 - Handles existing directory (error), permission issues (error), missing parent directory (create or error)
 
-> **⚠️ Rev 2.0 changes:**
-> - `.working-memory/` → `.ainotes/` with purpose-seeded files (not empty placeholders)
+> **Notes:**
+> - `.working-memory/` contains purpose-seeded files (not empty placeholders)
 > - `.github/agents/` and `.github/skills/` are NOT scaffolded here — they're host repo concerns (Phase 1b)
 > - The interactive SOUL.md customization (5 questions) is Phase 1b — scaffold drops the template verbatim
 
 **Tests:**
 - Scaffold into empty directory → success, all files created
 - Scaffold into existing directory → error
-- Validate scaffolded structure → passes validator (SOUL.md, .ainotes/ present)
+- Validate scaffolded structure → passes validator (SOUL.md, .working-memory/ present)
 - AgentName substitution works correctly
-- .ainotes/ files have purpose headers, not empty
+- .working-memory/ files have purpose headers, not empty
 
 **Deliverable:** Self-contained mind generator; used by orchestrator.
 
@@ -571,7 +571,7 @@ These are intentionally **not** part of Phase 1a:
 7. **Host repo skill creation** — `.github/skills/{name}/SKILL.md`. Same host repo concern.
 8. **Retrieval/search configuration** — Phase 4 of the guide. What tools, what rules.
 9. **Guided walkthrough orchestration** — The `--guided` flag, 6-phase conversational flow, confirm-at-each-step UX.
-10. **`.ainotes/` consolidation** — The guide specifies ~14 day consolidation cycles. This is an operational concern, not bootstrap.
+10. **`.working-memory/` consolidation** — The guide specifies ~14 day consolidation cycles. This is an operational concern, not bootstrap.
 
 ### Deferred to Phase 2+
 
@@ -630,8 +630,8 @@ These are binding decisions from the team, captured for future reference:
 - [ ] Felix and Vesper can run MsClaw on their machines without Ian's hands-on help
 - [ ] SOUL.md template is OpenClaw reference (verbatim, per directive)
 - [ ] Validation errors are structured (errors/warnings/found structure)
-- [ ] `.ainotes/` scaffolded with memory.md, rules.md, log.md (purpose-seeded, not empty)
-- [ ] Validator checks for `.ainotes/` (not `.working-memory/`)
+- [ ] `.working-memory/` scaffolded with memory.md, rules.md, log.md (purpose-seeded, not empty)
+- [ ] Validator checks for `.working-memory/`
 - [ ] Configuration persists and loads correctly
 - [ ] CLI args work: `--mind-root`, `--scaffold`, `--interactive`, `--reset-config`
 
@@ -640,4 +640,4 @@ These are binding decisions from the team, captured for future reference:
 **Document Status:** Ready for Ian's input on D1-D4. Scope decision (1a/1b split) needs Ian's sign-off.  
 **Author:** Q (Lead / Architect)  
 **Date:** 2026-03-01  
-**Revision:** 2.0 — Reassessed per "Building an Agent with Attitude" guide
+**Revision:** 2.1 — Rev 2.1: Corrected `.ainotes/` back to `.working-memory/` per user directive. The guide's memory file semantics apply but the directory name from the roadmap is authoritative.

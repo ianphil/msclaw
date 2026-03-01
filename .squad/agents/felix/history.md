@@ -34,9 +34,9 @@ See `.aidocs/bootstrap-plan.md` for full decomposition.
 
 ## Learnings
 
-- **`.ainotes/` is the memory system** (not `.working-memory/`) — Per "Building an Agent with Attitude" guide. Contains memory.md (long-term, curated), rules.md (mistake journal), log.md (raw chronological). Affects T3 validator and T5 scaffold. **Validator** should check .ainotes/ as required directory, .ainotes/{memory.md,rules.md,log.md} as warnings if missing. **Scaffold** creates .ainotes/ with all three files purpose-seeded.
+- **`.working-memory/` is the canonical memory directory name** — MsClaw roadmap (`.aidocs/roadmap.md`) uses `.working-memory/` as authoritative. The "Building an Agent with Attitude" guide uses `.ainotes/` for its own pattern, but MsClaw's naming is the source of truth. Memory file semantics (memory.md, rules.md, log.md) still apply per guide, just in `.working-memory/`. **Validator (T3)** checks .working-memory/ as required directory. **Scaffold (T5)** creates .working-memory/ with all three files purpose-seeded. Bootstrap plan updated to Rev 2.1.
 
-- **Mind ≠ Host Repo** — Mind is SOUL.md + .ainotes/ + IDEA folders (domains/, initiatives/, expertise/, inbox/, Archive/). Host repo is .github/agents/{name}.agent.md + .github/skills/{name}/SKILL.md. Phase 1a creates mind only; Phase 1b (future) adds host repo awareness. **Impact for T5:** Don't scaffold .github/ directories — those are host repo concerns added later.
+- **Mind ≠ Host Repo** — Mind is SOUL.md + .working-memory/ + IDEA folders (domains/, initiatives/, expertise/, inbox/, Archive/). Host repo is .github/agents/{name}.agent.md + .github/skills/{name}/SKILL.md. Phase 1a creates mind only; Phase 1b (future) adds host repo awareness. **Impact for T5:** Don't scaffold .github/ directories — those are host repo concerns added later.
 
 - **Phase 1a/1b split approved (D5)** — Ship Phase 1a (automated infrastructure, all 8 tasks) first, then Phase 1b (interactive 6-phase guide walkthrough). Phase 1a doesn't need --guided flag yet; T6 orchestrator should be extensible enough to add it without rewrite.
 
