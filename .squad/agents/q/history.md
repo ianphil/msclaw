@@ -74,3 +74,26 @@
 - Convention-over-configuration for discovery (search well-known locations before prompting)
 - Explicit validation phase before runtime (fail fast, clear errors)
 - Configuration persistence in user home directory (survives project moves)
+
+---
+
+### 2026-03-01 — Bootstrap Plan Reassessment (Rev 2.0)
+
+**Context:** Ian shared the "Building an Agent with Attitude" guide — a 6-phase interactive walkthrough that redefines bootstrap from "scaffold dirs" to "guided agent-building workshop."
+
+**Key shifts:**
+1. **`.ainotes/` replaces `.working-memory/`** — Same files, but with defined purposes: memory.md (curated long-term), rules.md (mistake journal), log.md (raw chronological). Not empty placeholders.
+2. **Host repo vs mind separation** — `.github/agents/` and `.github/skills/` live in the HOST REPO, not the mind. The mind is identity + knowledge; the host is operational config.
+3. **SOUL.md customization is interactive** — Template is the starting point, but 5 questions personalize it. Phase 1a drops template verbatim; Phase 1b adds the conversation.
+4. **Scope split: Phase 1a (automated) + 1b (interactive)** — 1a delivers the roadmap's 4 success criteria with the full directory structure. 1b layers the guided 6-phase experience on top.
+
+**Artifacts updated:**
+- `.aidocs/bootstrap-plan.md` → Rev 2.0 (all changes marked with ⚠️)
+- `.aidocs/bootstrap-guide-reference.md` → Local copy of the guide
+- `.squad/decisions/inbox/q-bootstrap-reassessment.md` → Formal decision record
+
+**Impact on tasks:**
+- T3 (validator): `.working-memory/` → `.ainotes/`, check sub-files as warnings
+- T5 (scaffold): `.ainotes/` with purpose-seeded files, no `.github/` dirs
+- T6 (orchestrator): Design for extensible mode system (`IBootstrapMode`) to support Phase 1b `--guided` flag
+- New decision D5: Phase 1a/1b scope split needs Ian's sign-off

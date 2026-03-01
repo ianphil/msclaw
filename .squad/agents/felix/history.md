@@ -34,5 +34,11 @@ See `.aidocs/bootstrap-plan.md` for full decomposition.
 
 ## Learnings
 
+- **`.ainotes/` is the memory system** (not `.working-memory/`) — Per "Building an Agent with Attitude" guide. Contains memory.md (long-term, curated), rules.md (mistake journal), log.md (raw chronological). Affects T3 validator and T5 scaffold. **Validator** should check .ainotes/ as required directory, .ainotes/{memory.md,rules.md,log.md} as warnings if missing. **Scaffold** creates .ainotes/ with all three files purpose-seeded.
+
+- **Mind ≠ Host Repo** — Mind is SOUL.md + .ainotes/ + IDEA folders (domains/, initiatives/, expertise/, inbox/, Archive/). Host repo is .github/agents/{name}.agent.md + .github/skills/{name}/SKILL.md. Phase 1a creates mind only; Phase 1b (future) adds host repo awareness. **Impact for T5:** Don't scaffold .github/ directories — those are host repo concerns added later.
+
+- **Phase 1a/1b split approved (D5)** — Ship Phase 1a (automated infrastructure, all 8 tasks) first, then Phase 1b (interactive 6-phase guide walkthrough). Phase 1a doesn't need --guided flag yet; T6 orchestrator should be extensible enough to add it without rewrite.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
