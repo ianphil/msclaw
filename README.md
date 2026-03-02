@@ -1,4 +1,4 @@
-# MsClaw
+# MsClaw (MS-Claw)
 
 A personal agent runtime powered by the [GitHub Copilot SDK](https://www.nuget.org/packages/GitHub.Copilot.SDK). Give your AI agent a persistent identity — a **mind** — with memory that grows across conversations.
 
