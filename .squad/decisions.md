@@ -244,3 +244,29 @@ Custom persistence pays cost, loses SDK features (compaction, workspace, turn tr
 `tests/MsClaw.Tests/CopilotRuntimeClientIntegrationScopeTests.cs` documents the boundary and future integration test strategy.
 
 ---
+
+## 2026-03-02T01:51:00Z: Cache Runtime Sessions and Fail Open on Corrupt Config
+
+**By:** Felix  
+**Requested by:** Ian Philpot  
+**Scope:** `src/MsClaw/Core/CopilotRuntimeClient.cs`, `src/MsClaw/Core/ICopilotRuntimeClient.cs`, `src/MsClaw/Core/ConfigPersistence.cs`
+
+### Decision
+
+1. Cache `CopilotSession` instances in `CopilotRuntimeClient` using `ConcurrentDictionary<string, CopilotSession>` and reuse cached sessions by `sessionId`.
+2. Remove `IAsyncDisposable` from `ICopilotRuntimeClient` and delete no-op `DisposeAsync` from implementation.
+3. Treat malformed `~/.msclaw/config.json` as missing config by catching `JsonException` in `ConfigPersistence.Load()` and returning `null`.
+
+### Why
+
+- Calling `ResumeSessionAsync` on every message creates untracked session instances and grows SDK session state over time.
+- Async-dispose in the runtime client contract implied ownership cleanup that does not exist in DI-managed lifecycle.
+- Corrupt user config should not block startup when discovery/scaffold can continue.
+
+### Consequences
+
+- Long-running server process no longer leaks resumed session objects for active conversation IDs.
+- Callers no longer need `await using` semantics around `ICopilotRuntimeClient`.
+- Bootstrap path is resilient to invalid JSON in persisted config.
+
+---
