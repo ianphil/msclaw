@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-BASE_URL="http://localhost:5050"
+BASE_URL="http://localhost:5000"
 SESSION_ID=""
 
 clear
-printf "\033[36m=== Chat Client (localhost:5050/chat) ===\033[0m\n"
+printf "\033[36m=== Chat Client (localhost:5000/chat) ===\033[0m\n"
 printf "\033[90mType your message and press Enter. Type 'quit' to exit.\033[0m\n"
 echo ""
 

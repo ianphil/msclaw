@@ -44,7 +44,7 @@ my-agent/
 └── .gitignore            # Excludes extensions/
 ```
 
-MsClaw validates the mind, saves its location to `~/.msclaw/config.json`, and starts the server on **http://localhost:5050**.
+MsClaw validates the mind, saves its location to `~/.msclaw/config.json`, and starts the server on **http://localhost:5000**.
 
 ## Bootstrap your agent
 
@@ -78,7 +78,7 @@ curl -sO https://raw.githubusercontent.com/ianphil/msclaw/master/scripts/chat.sh
 ./chat.sh
 ```
 
-Both scripts connect to `http://localhost:5050/chat`, show an animated spinner while waiting, and maintain session state across messages. Type `quit` to exit.
+Both scripts connect to `http://localhost:5000/chat`, show an animated spinner while waiting, and maintain session state across messages. Type `quit` to exit.
 
 ## After bootstrap
 
@@ -126,7 +126,7 @@ MsClaw exposes a simple HTTP API. You can use `curl`, the VS Code REST Client ex
 ### curl
 
 ```bash
-curl -s -X POST http://localhost:5050/chat \
+curl -s -X POST http://localhost:5000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "Hello!"}' | jq
 ```
@@ -136,7 +136,7 @@ curl -s -X POST http://localhost:5050/chat \
 Create a file called `requests.http`:
 
 ```http
-@host = http://localhost:5050
+@host = http://localhost:5000
 
 ### Health check
 GET {{host}}/health

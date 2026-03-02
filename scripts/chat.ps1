@@ -1,9 +1,9 @@
-$baseUrl = "http://localhost:5050"
+$baseUrl = "http://localhost:5000"
 $headers = @{ "Content-Type" = "application/json" }
 $sessionId = $null
 
 Clear-Host
-Write-Host "=== Chat Client (localhost:5050/chat) ===" -ForegroundColor Cyan
+Write-Host "=== Chat Client (localhost:5000/chat) ===" -ForegroundColor Cyan
 Write-Host "Type your message and press Enter. Type 'quit' to exit." -ForegroundColor DarkGray
 Write-Host ""
 
