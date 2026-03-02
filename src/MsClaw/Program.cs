@@ -64,7 +64,6 @@ builder.Services.AddSingleton<ISessionControl>(sp => sp.GetRequiredService<Copil
 var app = builder.Build();
 var extensionManager = app.Services.GetRequiredService<IExtensionManager>();
 await extensionManager.InitializeAsync();
-app.Lifetime.ApplicationStopping.Register(() => extensionManager.ShutdownAsync().GetAwaiter().GetResult());
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
@@ -120,4 +119,11 @@ app.MapPost("/chat", async (
 });
 
 extensionManager.MapRoutes(app);
-app.Run();
+try
+{
+    await app.RunAsync();
+}
+finally
+{
+    await extensionManager.ShutdownAsync();
+}

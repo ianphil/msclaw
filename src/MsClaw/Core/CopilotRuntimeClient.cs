@@ -104,7 +104,6 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient, ISessionContro
     public async Task CycleSessionsAsync(CancellationToken cancellationToken = default)
     {
         var sessionIds = _sessions.Keys.ToArray();
-        _sessions.Clear();
 
         foreach (var sessionId in sessionIds)
         {
@@ -117,6 +116,8 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient, ISessionContro
                 },
                 cancellationToken);
         }
+
+        _sessions.Clear();
     }
 
     private async Task<CopilotSession> GetOrResumeSessionAsync(string sessionId, CancellationToken cancellationToken)
