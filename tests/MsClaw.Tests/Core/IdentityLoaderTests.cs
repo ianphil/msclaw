@@ -1,5 +1,6 @@
 using Xunit;
 using MsClaw.Core;
+using MsClaw.Tests.TestHelpers;
 
 namespace MsClaw.Tests.Core;
 
@@ -8,7 +9,8 @@ public class IdentityLoaderTests
     [Fact]
     public async Task LoadSystemMessageAsync_SoulOnly_ReturnsSoulContent()
     {
-        var mindRoot = CreateTempDirectory();
+        using var fixture = new TempMindFixture();
+        var mindRoot = fixture.CreateMinimalMind();
         File.WriteAllText(Path.Combine(mindRoot, "SOUL.md"), "soul-content");
         var sut = new IdentityLoader();
 
@@ -20,7 +22,8 @@ public class IdentityLoaderTests
     [Fact]
     public async Task LoadSystemMessageAsync_SoulAndAgent_ComposesWithSeparator()
     {
-        var mindRoot = CreateTempDirectory();
+        using var fixture = new TempMindFixture();
+        var mindRoot = fixture.CreateMinimalMind();
         File.WriteAllText(Path.Combine(mindRoot, "SOUL.md"), "soul-content");
         var agentsDir = Path.Combine(mindRoot, ".github", "agents");
         Directory.CreateDirectory(agentsDir);
@@ -37,7 +40,8 @@ public class IdentityLoaderTests
     [Fact]
     public async Task LoadSystemMessageAsync_AgentFrontmatter_IsStripped()
     {
-        var mindRoot = CreateTempDirectory();
+        using var fixture = new TempMindFixture();
+        var mindRoot = fixture.CreateMinimalMind();
         File.WriteAllText(Path.Combine(mindRoot, "SOUL.md"), "soul-content");
         var agentsDir = Path.Combine(mindRoot, ".github", "agents");
         Directory.CreateDirectory(agentsDir);
@@ -57,7 +61,8 @@ public class IdentityLoaderTests
     [Fact]
     public async Task LoadSystemMessageAsync_MultipleAgentFiles_AllIncluded()
     {
-        var mindRoot = CreateTempDirectory();
+        using var fixture = new TempMindFixture();
+        var mindRoot = fixture.CreateMinimalMind();
         File.WriteAllText(Path.Combine(mindRoot, "SOUL.md"), "soul-content");
         var agentsDir = Path.Combine(mindRoot, ".github", "agents");
         Directory.CreateDirectory(agentsDir);
@@ -69,12 +74,5 @@ public class IdentityLoaderTests
 
         Assert.Contains("# Agent A", result);
         Assert.Contains("# Agent B", result);
-    }
-
-    private static string CreateTempDirectory()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"msclaw-identity-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(path);
-        return path;
     }
 }

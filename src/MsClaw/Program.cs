@@ -3,16 +3,16 @@ using MsClaw.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Bootstrap: resolve mind root before starting the server
+var validator = new MindValidator();
+var configPersistence = new ConfigPersistence();
+var discovery = new MindDiscovery(configPersistence, validator);
+var scaffold = new MindScaffold();
+var orchestrator = new BootstrapOrchestrator(validator, discovery, scaffold, configPersistence);
+
 string resolvedMindRoot;
 try
 {
-    // Bootstrap: resolve mind root before starting the server
-    var validator = new MindValidator();
-    var configPersistence = new ConfigPersistence();
-    var discovery = new MindDiscovery(configPersistence, validator);
-    var scaffold = new MindScaffold();
-    var orchestrator = new BootstrapOrchestrator(validator, discovery, scaffold, configPersistence);
-
     var bootstrapResult = orchestrator.Run(args);
     if (bootstrapResult is null)
     {
@@ -34,10 +34,11 @@ builder.Services.Configure<MsClawOptions>(opts =>
     opts.MindRoot = resolvedMindRoot;
 });
 
-builder.Services.AddSingleton<IMindValidator, MindValidator>();
-builder.Services.AddSingleton<IConfigPersistence, ConfigPersistence>();
-builder.Services.AddSingleton<IMindDiscovery, MindDiscovery>();
-builder.Services.AddSingleton<IMindScaffold, MindScaffold>();
+// Register the same instances used during bootstrap — avoids duplicate instantiation
+builder.Services.AddSingleton<IMindValidator>(validator);
+builder.Services.AddSingleton<IConfigPersistence>(configPersistence);
+builder.Services.AddSingleton<IMindDiscovery>(discovery);
+builder.Services.AddSingleton<IMindScaffold>(scaffold);
 builder.Services.AddSingleton<IIdentityLoader, IdentityLoader>();
 
 builder.Services.AddSingleton<ISessionManager, SessionManager>();

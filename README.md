@@ -63,7 +63,6 @@ When no `--mind` or `--new-mind` flag is provided, MsClaw searches for a mind in
 1. Cached config (`~/.msclaw/config.json`)
 2. Current working directory
 3. `~/.msclaw/mind`
-4. `~/src/miss-moneypenny`
 
 The first valid mind found is used. The resolved path is persisted to config for future runs.
 

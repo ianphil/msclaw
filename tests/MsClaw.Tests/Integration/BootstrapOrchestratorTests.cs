@@ -86,11 +86,14 @@ public sealed class BootstrapOrchestratorTests : IDisposable
     }
 
     [Fact]
-    public void Run_UnknownFlag_ThrowsInvalidOperationException()
+    public void Run_UnknownFlag_IgnoredAndFallsThroughToDiscovery()
     {
         var sut = CreateSut();
 
-        Assert.Throws<InvalidOperationException>(() => sut.Run(["--nope"]));
+        // Unknown flags are silently ignored (they may be ASP.NET Core host flags).
+        // With no mind discoverable, this throws because discovery returns null — not because of the flag.
+        var ex = Assert.Throws<InvalidOperationException>(() => sut.Run(["--urls", "http://localhost:5000"]));
+        Assert.Contains("No valid mind found", ex.Message);
     }
 
     [Fact]

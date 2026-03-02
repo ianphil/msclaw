@@ -32,12 +32,6 @@ public sealed class MindDiscovery : IMindDiscovery
             return msclawMind;
         }
 
-        var missMoneypenny = Path.Combine(home, "src", "miss-moneypenny");
-        if (IsValidCandidate(missMoneypenny))
-        {
-            return missMoneypenny;
-        }
-
         return null;
     }
 

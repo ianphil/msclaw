@@ -46,7 +46,7 @@ public sealed class BootstrapOrchestrator : IBootstrapOrchestrator
                     newMindPath = ReadPathValue(args, ref i, "--new-mind", newMindPath);
                     break;
                 default:
-                    ThrowUsage($"Unknown argument: {args[i]}");
+                    // Skip unknown args — they may be ASP.NET Core host flags (--urls, --environment, etc.)
                     break;
             }
         }

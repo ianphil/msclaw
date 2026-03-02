@@ -10,14 +10,18 @@ public sealed class MindValidator : IMindValidator
         var warnings = new List<string>();
         var found = new List<string>();
 
-        if (Directory.Exists(mindRoot))
-        {
-            found.Add(mindRoot);
-        }
-        else
+        if (!Directory.Exists(mindRoot))
         {
             errors.Add($"Mind root directory does not exist: {mindRoot}");
+            return new MindValidationResult
+            {
+                Errors = errors,
+                Warnings = warnings,
+                Found = found
+            };
         }
+
+        found.Add(mindRoot);
 
         var soulPath = Path.Combine(mindRoot, "SOUL.md");
         if (File.Exists(soulPath))
