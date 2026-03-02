@@ -7,9 +7,9 @@ MsClaw is a runtime that gives your AI agent a persistent identity — a **mind*
 - A [GitHub Copilot](https://github.com/features/copilot) subscription
 - [Copilot CLI](https://www.npmjs.com/package/@github/copilot) installed via npm
 - [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
-- [PowerShell 7](https://learn.microsoft.com/powershell/) (for the chat script on Windows)
+- [PowerShell 7](https://learn.microsoft.com/powershell/)
 
-```bash
+```powershell
 npm install -g @github/copilot
 winget install Microsoft.DotNet.SDK.9
 winget install Microsoft.PowerShell
@@ -17,7 +17,7 @@ winget install Microsoft.PowerShell
 
 ## Install
 
-```bash
+```powershell
 dotnet tool install -g MsClaw
 ```
 
@@ -25,7 +25,7 @@ dotnet tool install -g MsClaw
 
 Run MsClaw with `--new-mind` to create a fresh mind directory:
 
-```bash
+```powershell
 msclaw --new-mind ~/my-agent
 ```
 
@@ -62,13 +62,11 @@ Because `bootstrap.md` exists in a new mind, MsClaw enters bootstrap mode. The a
 2. **Agent file** — Role, domain, tools → creates `.github/agents/{name}.agent.md`
 3. **Memory** — Seeds `.working-memory/` with initial context from the conversation
 
-The easiest way to have this conversation is with one of the chat scripts below. The agent will ask you questions one at a time — answer naturally, it offers sensible defaults if you're unsure.
+The easiest way to have this conversation is with the chat script below. The agent will ask you questions one at a time — answer naturally, it offers sensible defaults if you're unsure.
 
-## Chat scripts (experimental)
+## Chat script (experimental)
 
-Lightweight terminal chat clients that connect to a running MsClaw instance. These are experimental and will be replaced eventually, but they work for quick conversations today.
-
-### PowerShell
+A lightweight terminal chat client that connects to a running MsClaw instance. This is experimental and will be replaced eventually, but it works for quick conversations today.
 
 Browse the source: [scripts/chat.ps1](https://github.com/ianphil/msclaw/blob/master/scripts/chat.ps1)
 
@@ -77,16 +75,7 @@ Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ianphil/msclaw/master/
 .\chat.ps1
 ```
 
-### Bash
-
-Browse the source: [scripts/chat.sh](https://github.com/ianphil/msclaw/blob/master/scripts/chat.sh) (requires `jq`)
-
-```bash
-curl -sO https://raw.githubusercontent.com/ianphil/msclaw/master/scripts/chat.sh && chmod +x chat.sh
-./chat.sh
-```
-
-Both scripts connect to `http://localhost:5000/chat`, show an animated spinner while waiting, and maintain session state across messages. Type `quit` to exit.
+Connects to `http://localhost:5000/chat`, shows an animated spinner while waiting, and maintains session state across messages. Type `quit` to exit.
 
 ## After bootstrap
 
@@ -102,13 +91,13 @@ Once all three phases are complete, the agent deletes `bootstrap.md` and the min
 
 MsClaw remembers your mind. Just run:
 
-```bash
+```powershell
 msclaw
 ```
 
 It reads `~/.msclaw/config.json` to find the last-used mind and starts serving. To switch minds, pass `--mind` with a different path:
 
-```bash
+```powershell
 msclaw --mind ~/another-agent
 ```
 
@@ -121,7 +110,7 @@ msclaw --mind ~/another-agent
 
 ## API Reference
 
-MsClaw exposes a simple HTTP API. You can use `curl`, the VS Code REST Client extension, or any HTTP tool.
+MsClaw exposes a simple HTTP API. You can use `Invoke-RestMethod`, the VS Code REST Client extension, or any HTTP tool.
 
 | Method | Path | Description |
 |---|---|---|
@@ -131,12 +120,10 @@ MsClaw exposes a simple HTTP API. You can use `curl`, the VS Code REST Client ex
 | `POST` | `/command` | Execute a slash command (e.g., `/extensions`, `/reload`) |
 | `GET` | `/extensions` | List loaded extensions |
 
-### curl
+### PowerShell
 
-```bash
-curl -s -X POST http://localhost:5000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello!"}' | jq
+```powershell
+Invoke-RestMethod -Uri http://localhost:5000/chat -Method POST -ContentType 'application/json' -Body '{"message": "Hello!"}'
 ```
 
 ### VS Code REST Client
