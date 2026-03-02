@@ -1,6 +1,6 @@
 # Getting Started with MS-Claw
 
-MsClaw is a runtime that gives your AI agent a persistent personality — a **mind**. This guide walks you through setting up your first mind and having your first conversation.
+MS-Claw is a runtime that gives your AI agent a persistent personality — a **mind**. This guide walks you through setting up your first mind and having your first conversation.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ dotnet tool install -g MsClaw
 
 ## Scaffold a new mind
 
-Run MsClaw with `--new-mind` to create a fresh mind directory:
+Run MS-Claw with `--new-mind` to create a fresh mind directory:
 
 ```powershell
 msclaw --new-mind ~/my-agent
@@ -52,13 +52,13 @@ my-agent/
 └── .gitignore            # Excludes extensions/
 ```
 
-MsClaw validates the mind, saves its location to `~/.msclaw/config.json`, and starts the server on **http://localhost:5000**.
+MS-Claw validates the mind, saves its location to `~/.msclaw/config.json`, and starts the server on **http://localhost:5000**.
 
 ## Bootstrap your agent
 
-Because `bootstrap.md` exists in a new mind, MsClaw enters bootstrap mode. The agent will walk you through three phases to build its personality:
+Because `bootstrap.md` exists in a new mind, MS-Claw enters bootstrap mode. The agent will walk you through three phases to build its personality:
 
-1. **Identity** — Name, personality, mission, boundaries → customizes `SOUL.md`
+1. **Personality** — Name, personality, mission, boundaries → customizes `SOUL.md`
 2. **Agent file** — Role, domain, tools → creates `.github/agents/{name}.agent.md`
 3. **Memory** — Seeds `.working-memory/` with initial context from the conversation
 
@@ -66,7 +66,7 @@ The easiest way to have this conversation is with the chat script below. Start i
 
 ## Chat script (experimental)
 
-A lightweight terminal chat client that connects to a running MsClaw instance. This is experimental and will be replaced eventually, but it works for quick conversations today.
+A lightweight terminal chat client that connects to a running MS-Claw instance. This is experimental and will be replaced eventually, but it works for quick conversations today.
 
 Browse the source: [scripts/chat.ps1](https://github.com/ianphil/msclaw/blob/master/scripts/chat.ps1)
 
@@ -89,7 +89,7 @@ Once all three phases are complete, the agent deletes `bootstrap.md` and the min
 
 ## Running again
 
-MsClaw remembers your mind. Just run:
+MS-Claw remembers your mind. Just run:
 
 ```powershell
 msclaw
@@ -110,7 +110,7 @@ msclaw --mind ~/another-agent
 
 ## API Reference
 
-MsClaw exposes a simple HTTP API. You can use `Invoke-RestMethod`, the VS Code REST Client extension, or any HTTP tool.
+MS-Claw exposes a simple HTTP API. You can use `Invoke-RestMethod`, the VS Code REST Client extension, or any HTTP tool.
 
 | Method | Path | Description |
 |---|---|---|
