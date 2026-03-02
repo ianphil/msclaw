@@ -36,9 +36,23 @@ public static class CliLocator
                     $"Ensure '{binaryName}' is installed and available on your system PATH.");
             }
 
-            // 'where' on Windows can return multiple lines; take the first match
-            var resolved = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)[0].Trim();
-            return resolved;
+            var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+                .Select(l => l.Trim())
+                .Where(l => !string.IsNullOrWhiteSpace(l))
+                .ToArray();
+
+            // On Windows, 'where' may return multiple matches (e.g. bare script, .cmd, .exe).
+            // Prefer .exe, then .cmd — bare extensionless scripts are not directly executable.
+            if (isWindows)
+            {
+                var exe = lines.FirstOrDefault(l => l.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+                if (exe != null) return exe;
+
+                var cmd = lines.FirstOrDefault(l => l.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase));
+                if (cmd != null) return cmd;
+            }
+
+            return lines[0];
         }
         catch (InvalidOperationException)
         {
