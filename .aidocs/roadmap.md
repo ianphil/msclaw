@@ -43,9 +43,9 @@ Three phases, in order. Each builds on the last.
 
 ---
 
-## Phase 2: Extension System 🚧
+## Phase 2: Extension System ✅
 
-**Status:** In progress — Phase 2 foundation implemented on `feature/extension-system-phase-2`.
+**Status:** Complete — implemented on `feature/extension-system-phase-2`.
 
 **Goal:** Modular capabilities via a plugin API. The gateway, channels, tools, and hooks all register as extensions — this is the seam that makes MsClaw composable.
 

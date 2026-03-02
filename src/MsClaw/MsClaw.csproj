@@ -4,6 +4,18 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Global tool packaging -->
+    <PackAsTool>true</PackAsTool>
+    <IsPackable>true</IsPackable>
+    <ToolCommandName>msclaw</ToolCommandName>
+    <PackageId>MsClaw</PackageId>
+    <Version>0.3.1</Version>
+    <Authors>ianphil</Authors>
+    <Description>MsClaw — an agentic runtime for AI minds</Description>
+    <PackageProjectUrl>https://github.com/ianphil/msclaw</PackageProjectUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +25,10 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Templates\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" />
   </ItemGroup>
 
 </Project>
