@@ -6,7 +6,7 @@ A [GitHub Copilot Extension](https://docs.github.com/en/copilot/building-copilot
 
 ```bash
 dotnet tool install -g MsClaw
-msclaw --mind /path/to/your/mind
+msclaw --new-mind /path/to/my-mind
 ```
 
 Or from source:
