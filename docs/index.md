@@ -1,6 +1,6 @@
 # MS-Claw Documentation
 
-A [GitHub Copilot Extension](https://docs.github.com/en/copilot/building-copilot-extensions) that gives your AI agent a persistent identity — a **mind**.
+A [GitHub Copilot Extension](https://docs.github.com/en/copilot/building-copilot-extensions) that gives your AI agent a persistent personality — a **mind**.
 
 ## Getting Started
 

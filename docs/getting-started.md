@@ -1,6 +1,6 @@
 # Getting Started with MS-Claw
 
-MsClaw is a runtime that gives your AI agent a persistent identity — a **mind**. This guide walks you through setting up your first mind and having your first conversation.
+MsClaw is a runtime that gives your AI agent a persistent personality — a **mind**. This guide walks you through setting up your first mind and having your first conversation.
 
 ## Prerequisites
 
@@ -33,7 +33,7 @@ This creates the mind structure at `~/my-agent/`:
 
 ```
 my-agent/
-├── SOUL.md               # Identity file (template — you'll customize this)
+├── SOUL.md               # Personality file (template — you'll customize this)
 ├── bootstrap.md          # Triggers the bootstrap conversation
 ├── .working-memory/      # Persistent memory the agent reads/writes
 │   ├── memory.md         # Long-term reference

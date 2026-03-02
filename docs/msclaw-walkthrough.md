@@ -5,10 +5,10 @@
 
 # What is MsClaw?
 
-MsClaw is a GitHub Copilot Extension that gives AI agents a **persistent identity** — a 'mind'. Instead of starting fresh with each conversation, MsClaw loads a mind directory containing an identity file (SOUL.md), agent definitions, and working memory, then serves it as a Copilot agent through the GitHub Copilot Runtime API.
+MsClaw is a GitHub Copilot Extension that gives AI agents a **persistent personality** — a 'mind'. Instead of starting fresh with each conversation, MsClaw loads a mind directory containing a personality file (SOUL.md), agent definitions, and working memory, then serves it as a Copilot agent through the GitHub Copilot Runtime API.
 
 Think of it like this:
-- **Without MsClaw**: Every conversation with Copilot is stateless. The agent has no memory of previous interactions, no persistent identity, no ongoing context.
+- **Without MsClaw**: Every conversation with Copilot is stateless. The agent has no memory of previous interactions, no persistent personality, no ongoing context.
 - **With MsClaw**: An agent has a mind with a defined SOUL, can load its own agents, maintains working memory, and persists across sessions.
 
 The core responsibility is simple: **load a mind directory, validate it, expose it through the Copilot Runtime API on localhost:5050, and provide an extension system for dynamic behavior injection**.
@@ -608,7 +608,7 @@ public sealed class IdentityLoader : IIdentityLoader
 
 **IdentityLoader** builds the system prompt for the Copilot agent by combining:
 
-1. **SOUL.md** — The mind's core identity and personality
+1. **SOUL.md** — The mind's core personality
 2. **Agent files** — Individual agent definitions from 
 
 The loader reads SOUL.md first, then appends each agent file (stripping their YAML frontmatter). This creates a single system prompt that defines both the agent's personality and the specific agent behaviors it should support.

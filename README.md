@@ -1,6 +1,6 @@
 # MS-Claw
 
-A personal agent runtime powered by the [GitHub Copilot SDK](https://www.nuget.org/packages/GitHub.Copilot.SDK). Give your AI agent a persistent identity — a **mind** — with memory that grows across conversations.
+A personal agent runtime powered by the [GitHub Copilot SDK](https://www.nuget.org/packages/GitHub.Copilot.SDK). Give your AI agent a persistent personality — a **mind** — with memory that grows across conversations.
 
 ## Get Started
 
@@ -17,7 +17,7 @@ msclaw --new-mind ~/my-agent
 
 A mind is a directory that defines who your agent is and what it remembers:
 
-- **`SOUL.md`** — Identity, personality, mission, and boundaries
+- **`SOUL.md`** — Personality, mission, and boundaries
 - **`.working-memory/`** — Persistent memory the agent reads and writes across sessions
 - **`.github/agents/`** — Agent instruction files
 
