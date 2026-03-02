@@ -4,8 +4,16 @@ MsClaw is a runtime that gives your AI agent a persistent identity — a **mind*
 
 ## Prerequisites
 
-- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) installed
-- A [GitHub Copilot](https://github.com/features/copilot) subscription (the runtime uses the Copilot API)
+- A [GitHub Copilot](https://github.com/features/copilot) subscription
+- [Copilot CLI](https://www.npmjs.com/package/@github/copilot) installed via npm
+- [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [PowerShell 7](https://learn.microsoft.com/powershell/) (for the chat script on Windows)
+
+```bash
+npm install -g @github/copilot
+winget install Microsoft.DotNet.SDK.9
+winget install Microsoft.PowerShell
+```
 
 ## Install
 
