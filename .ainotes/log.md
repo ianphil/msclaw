@@ -34,3 +34,6 @@
 - extension-runtime: Warm reload semantics are safest when session cycling lives in `ReloadExternalAsync` itself, not only in a command wrapper
 - dependency-ordering: Dependency "missing" checks in topo sort must include already-resolved nodes, not just pending/core sets
 - tooling: Mind-scoped file tools can be removed from core when relying on Copilot CLI built-in file tools; no hard runtime dependency required
+- tooling: `showboat verify --output <file>` regenerates a walkthrough with current outputs; fix sed ranges first, then regenerate to avoid stale context bleed
+- e2e: Full extension e2e smoke test (all 5 capability paths) passed against hello-world sample extension on ernist mind — tools, hooks, commands, HTTP routes, and warm reload all verified
+- release: Tagged master with v0.1.0 (bootstrap), v0.2.0 (session refactor), v0.3.0 (extension system)
