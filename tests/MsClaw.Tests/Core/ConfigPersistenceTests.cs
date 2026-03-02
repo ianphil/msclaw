@@ -28,13 +28,18 @@ public class ConfigPersistenceTests : IDisposable
     public void Save_ThenLoad_RoundTripsConfiguration()
     {
         var sut = new ConfigPersistence(_configPath);
-        var expected = new MsClawConfig { MindRoot = "/tmp/test-mind" };
+        var expected = new MsClawConfig
+        {
+            MindRoot = "/tmp/test-mind",
+            DisabledExtensions = ["ext.one", "ext.two"]
+        };
 
         sut.Save(expected);
         var loaded = sut.Load();
 
         Assert.NotNull(loaded);
         Assert.Equal(expected.MindRoot, loaded!.MindRoot);
+        Assert.Equal(expected.DisabledExtensions, loaded.DisabledExtensions);
     }
 
     [Fact]

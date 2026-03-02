@@ -41,6 +41,9 @@ builder.Services.AddSingleton<IConfigPersistence>(configPersistence);
 builder.Services.AddSingleton<IMindDiscovery>(discovery);
 builder.Services.AddSingleton<IMindScaffold>(scaffold);
 builder.Services.AddSingleton<IIdentityLoader, IdentityLoader>();
+builder.Services.AddSingleton<IMindReader, MindReader>();
+builder.Services.AddSingleton<ExtensionManager>();
+builder.Services.AddSingleton<IExtensionManager>(sp => sp.GetRequiredService<ExtensionManager>());
 
 // Register CopilotClient as singleton
 builder.Services.AddSingleton<CopilotClient>(sp =>
@@ -54,10 +57,14 @@ builder.Services.AddSingleton<CopilotClient>(sp =>
     });
 });
 
-builder.Services.AddSingleton<IMindReader, MindReader>();
-builder.Services.AddSingleton<ICopilotRuntimeClient, CopilotRuntimeClient>();
+builder.Services.AddSingleton<CopilotRuntimeClient>();
+builder.Services.AddSingleton<ICopilotRuntimeClient>(sp => sp.GetRequiredService<CopilotRuntimeClient>());
+builder.Services.AddSingleton<ISessionControl>(sp => sp.GetRequiredService<CopilotRuntimeClient>());
 
 var app = builder.Build();
+var extensionManager = app.Services.GetRequiredService<IExtensionManager>();
+await extensionManager.InitializeAsync();
+app.Lifetime.ApplicationStopping.Register(() => extensionManager.ShutdownAsync().GetAwaiter().GetResult());
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
@@ -65,6 +72,25 @@ app.MapPost("/session/new", async (ICopilotRuntimeClient copilotClient, Cancella
 {
     var sessionId = await copilotClient.CreateSessionAsync(cancellationToken);
     return Results.Ok(new { sessionId });
+});
+
+app.MapPost("/command", async (
+    ChatRequest request,
+    IExtensionManager extensionManager,
+    CancellationToken cancellationToken) =>
+{
+    if (string.IsNullOrWhiteSpace(request.Message))
+    {
+        return Results.BadRequest(new { error = "message is required" });
+    }
+
+    var result = await extensionManager.TryExecuteCommandAsync(request.Message, request.SessionId, cancellationToken);
+    if (result is null)
+    {
+        return Results.BadRequest(new { error = "input is not a command" });
+    }
+
+    return Results.Ok(new { response = result });
 });
 
 app.MapPost("/chat", async (
@@ -93,4 +119,5 @@ app.MapPost("/chat", async (
     });
 });
 
+extensionManager.MapRoutes(app);
 app.Run();

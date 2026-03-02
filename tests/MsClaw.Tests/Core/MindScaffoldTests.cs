@@ -28,6 +28,10 @@ public class MindScaffoldTests
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "expertise")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "inbox")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "Archive")));
+        Assert.True(Directory.Exists(Path.Combine(mindRoot, "extensions")));
+        Assert.True(File.Exists(Path.Combine(mindRoot, "extensions.lock.json")));
+        Assert.True(File.Exists(Path.Combine(mindRoot, ".gitignore")));
+        Assert.Contains("extensions/", File.ReadAllText(Path.Combine(mindRoot, ".gitignore")));
     }
 
     [Fact]

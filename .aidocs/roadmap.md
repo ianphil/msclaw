@@ -43,11 +43,24 @@ Three phases, in order. Each builds on the last.
 
 ---
 
-## Phase 2: Extension System
+## Phase 2: Extension System 🚧
+
+**Status:** In progress — Phase 2 foundation implemented on `feature/extension-system-phase-2`.
 
 **Goal:** Modular capabilities via a plugin API. The gateway, channels, tools, and hooks all register as extensions — this is the seam that makes MsClaw composable.
 
-**What exists today:** Core capabilities (MindReader, SessionManager, IdentityLoader) are hardwired in DI. No plugin discovery, no registration API, no lifecycle management.
+### What Was Built
+
+- **Extension contract + API** — `IExtension`, `ExtensionBase`, `IMsClawPluginApi`, hook/command contexts, and extension lifecycle methods
+- **Capability registration surface** — Tools, hooks, services, commands, and HTTP routes
+- **Extension runtime manager** — Core + external extension loading, manifest parsing, dependency ordering with SemVer range checks, and error isolation
+- **Two-tier discovery** — `{appRoot}/extensions` and `{mindRoot}/extensions` with mind-root override behavior
+- **Core extensions** — MindReader moved behind extension registration; runtime control extension provides `/reload` and `/extensions`
+- **Runtime wiring** — `SessionConfig.Tools` from extensions and hook firing for `session:*`, `message:*`, bootstrap, and extension-loaded events
+- **Command bypass endpoint** — `POST /command` for slash commands without LLM roundtrip
+- **Warm reload path** — external extensions reload without app restart; active sessions are cycled
+- **Mind scaffolding/config updates** — scaffolded `extensions/`, `extensions.lock.json`, and mind-local `.gitignore`; config supports disabled extension IDs
+- **Coverage + manual validation assets** — added extension runtime tests, `.aidocs/e2e-extension-test.md`, and sample extension repo `https://github.com/ipdelete/hello-world-extension`
 
 **SDK surface:** `RegisterTool()` collects `AIFunction` instances (via `AIFunctionFactory.Create()`) and passes them to `SessionConfig.Tools` at session creation. `RegisterHook()` wraps the SDK's `SessionConfig.Hooks` (`OnPreToolUse`, `OnPostToolUse`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`). `RegisterService()`, `RegisterCommand()`, and `RegisterHttpRoute()` have no SDK equivalent — they're pure .NET DI / ASP.NET concerns. Tools must be registered before session creation; the SDK wires them at `CreateSessionAsync()` time, not after.
 
@@ -77,19 +90,24 @@ Note: `RegisterChannel()` is **not** on this interface — it lives on the gatew
 
 ### Tasks
 
-- [ ] **Study OpenClaw's `register()` flow** — How do callbacks wire into the runtime loop? What's the lifecycle (load → validate → register → start → stop)? Map this onto .NET DI patterns.
-- [ ] **Define `IExtension` interface** — The contract every extension implements. At minimum: `Id`, `Name`, `Version`, `Register(IMsClawPluginApi api)`, `Start()`, `Stop()`.
-- [ ] **Build `IMsClawPluginApi`** — The core API object passed to extensions during registration. Implements RegisterTool, RegisterHook, RegisterService, RegisterCommand, RegisterHttpRoute. Does NOT include RegisterChannel (that's the gateway's API — see Phase 3).
-- [ ] **Extension loader** — Discover extensions from a configured directory, validate plugin.json, instantiate, call Register(). Consider: assembly loading, config injection, dependency ordering.
-- [ ] **Refactor MindReader as first extension** — Currently hardwired. Move it behind the extension API as a proof-of-concept: registers `read_file` and `list_directory` as tools.
-- [ ] **Hook system** — Lifecycle events: `session:create`, `session:resume`, `session:end`, `message:received`, `message:sent`, `agent:bootstrap`. Extensions subscribe via `RegisterHook()`.
+- [x] **Study OpenClaw's `register()` flow** — Adapted lifecycle to .NET DI/runtime model.
+- [x] **Define `IExtension` interface** — Implemented with async lifecycle and registration method.
+- [x] **Build `IMsClawPluginApi`** — Implemented all five capability registration methods.
+- [x] **Extension loader** — Implemented discovery, validation, dynamic loading, and dependency ordering.
+- [x] **Refactor MindReader as first extension** — Implemented as a core extension.
+- [x] **Hook system** — Implemented lifecycle hook events and fire-and-await behavior.
 
 ### Success Criteria
 
-1. MindReader works as an extension (not hardwired) — registers tools via the plugin API
-2. A "hello world" extension can be dropped into `extensions/` and discovered on startup
-3. Hook events fire at the right lifecycle points
-4. Extensions can be enabled/disabled via config
+1. ✅ MindReader works as an extension (not hardwired) — registers tools via the plugin API
+2. ✅ A "hello world" extension can be dropped into `extensions/` and discovered on startup
+3. ✅ Hook events fire at the key lifecycle points used by runtime/session flow
+4. ✅ Extensions can be enabled/disabled via config ID list
+
+### Known Follow-ups
+
+- Route delegates are currently retained across warm reloads, which can expose pre-reload extension state on mapped endpoints.
+- Distribution/management commands (`install`, `uninstall`, `list`, `update`, `restore`) still need full CLI implementation.
 
 ### What This Unlocks
 

@@ -27,5 +27,28 @@ public sealed class MindScaffold : IMindScaffold
         Directory.CreateDirectory(Path.Combine(mindRoot, "expertise"));
         Directory.CreateDirectory(Path.Combine(mindRoot, "inbox"));
         Directory.CreateDirectory(Path.Combine(mindRoot, "Archive"));
+        Directory.CreateDirectory(Path.Combine(mindRoot, "extensions"));
+        File.WriteAllText(Path.Combine(mindRoot, "extensions.lock.json"), "{\n  \"extensions\": []\n}\n");
+        EnsureMindGitIgnoreIncludesExtensions(mindRoot);
+    }
+
+    private static void EnsureMindGitIgnoreIncludesExtensions(string mindRoot)
+    {
+        var gitIgnorePath = Path.Combine(mindRoot, ".gitignore");
+        var entry = "extensions/";
+
+        if (!File.Exists(gitIgnorePath))
+        {
+            File.WriteAllText(gitIgnorePath, $"{entry}\n");
+            return;
+        }
+
+        var lines = File.ReadAllLines(gitIgnorePath);
+        if (lines.Any(line => line.Trim().Equals(entry, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        File.AppendAllText(gitIgnorePath, $"{Environment.NewLine}{entry}{Environment.NewLine}");
     }
 }
