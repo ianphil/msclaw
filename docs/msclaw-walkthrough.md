@@ -101,10 +101,11 @@ The bootstrap phase happens **before** the HTTP server starts. MsClaw uses a Boo
 This is important because all downstream services (IMindReader, IMindValidator, etc.) depend on knowing the mind root path upfront. Notice that ExtensionManager is registered as a singleton—this is the new feature that enables dynamic behavior injection.
 
 ```bash
-sed -n '50,90p' src/MsClaw/Program.cs
+sed -n '49,90p' src/MsClaw/Program.cs
 ```
 
 ```output
+builder.Services.AddSingleton<CopilotClient>(sp =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MsClawOptions>>().Value;
     return new CopilotClient(new CopilotClientOptions
@@ -122,7 +123,6 @@ builder.Services.AddSingleton<ISessionControl>(sp => sp.GetRequiredService<Copil
 var app = builder.Build();
 var extensionManager = app.Services.GetRequiredService<IExtensionManager>();
 await extensionManager.InitializeAsync();
-app.Lifetime.ApplicationStopping.Register(() => extensionManager.ShutdownAsync().GetAwaiter().GetResult());
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
@@ -146,6 +146,7 @@ app.MapPost("/command", async (
     if (result is null)
     {
         return Results.BadRequest(new { error = "input is not a command" });
+    }
 ```
 
 After building the app, Program.cs initializes the extension system before starting the HTTP server. The extension manager hooks into the application lifecycle: it initializes on startup and shuts down gracefully when the app stops.
@@ -352,7 +353,7 @@ This allows a mind to customize its behavior by adding external extensions.
 The **ExtensionManager** is the component responsible for loading, initializing, and coordinating extensions. It manages the lifecycle and provides the core dispatch mechanisms.
 
 ```bash
-sed -n '50,82p' src/MsClaw/Core/ExtensionManager.cs
+sed -n '48,79p' src/MsClaw/Core/ExtensionManager.cs
 ```
 
 ```output
@@ -388,7 +389,6 @@ sed -n '50,82p' src/MsClaw/Core/ExtensionManager.cs
             _reloadLock.Release();
         }
     }
-
 ```
 
 ### Initialization Sequence
@@ -406,7 +406,7 @@ Notice the **_reloadLock** semaphore—it ensures initialization and reload are 
 The separation of 'extension:loaded' and 'agent:bootstrap' events is intentional. Core extensions might need to set up tools before the agent initializes. The 'agent:bootstrap' event signals that the extension system is ready and the agent can safely use all registered tools.
 
 ```bash
-sed -n '179,207p' src/MsClaw/Core/ExtensionManager.cs
+sed -n '183,211p' src/MsClaw/Core/ExtensionManager.cs
 ```
 
 ```output
@@ -455,7 +455,7 @@ This is **fail-safe by design**. One misbehaving extension can't crash the entir
 The _stateLock uses lock() statements to ensure thread safety—multiple threads might be firing hooks simultaneously while other threads are registering new tools or commands.
 
 ```bash
-sed -n '209,250p' src/MsClaw/Core/ExtensionManager.cs
+sed -n '213,255p' src/MsClaw/Core/ExtensionManager.cs
 ```
 
 ```output
@@ -501,6 +501,7 @@ sed -n '209,250p' src/MsClaw/Core/ExtensionManager.cs
         {
             _logger.LogError(ex, "Command '{Command}' failed in extension '{ExtensionId}'.", command, registration.ExtensionId);
             return $"Command failed: {ex.Message}";
+        }
 ```
 
 ### Command Dispatch

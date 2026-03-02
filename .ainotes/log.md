@@ -31,3 +31,6 @@
 - documentation: Created comprehensive extension-developer-guide.md — hands-on walkthrough for extension developers covering full IExtension lifecycle, tool/command/hook registration, configuration, testing, and common patterns; included ASP.NET limitation (HTTP routes frozen after startup) with documented workaround
 - docs: Removed duplicate "Extension System: A New Architecture" section from msclaw-walkthrough.md (merge artifact from Showboat generation)
 - phase2-review: Marked item 6 (HTTP route reload limitation) as complete with documentation link
+- extension-runtime: Warm reload semantics are safest when session cycling lives in `ReloadExternalAsync` itself, not only in a command wrapper
+- dependency-ordering: Dependency "missing" checks in topo sort must include already-resolved nodes, not just pending/core sets
+- tooling: Mind-scoped file tools can be removed from core when relying on Copilot CLI built-in file tools; no hard runtime dependency required

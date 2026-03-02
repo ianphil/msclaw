@@ -1,8 +1,6 @@
-using System.ComponentModel;
 using System.Reflection;
 using System.Runtime.Loader;
 using System.Text.Json;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.DependencyInjection;
@@ -112,6 +110,12 @@ public sealed class ExtensionManager : IExtensionManager
         await _reloadLock.WaitAsync(cancellationToken);
         try
         {
+            var sessionControl = _services.GetService<ISessionControl>();
+            if (sessionControl is not null)
+            {
+                await sessionControl.CycleSessionsAsync(cancellationToken);
+            }
+
             await RemoveExternalExtensionsAsync(cancellationToken);
             await RegisterExternalExtensionsAsync(cancellationToken);
 
@@ -255,7 +259,6 @@ public sealed class ExtensionManager : IExtensionManager
     {
         var coreDescriptors = new[]
         {
-            ExtensionDescriptor.ForCore("msclaw.core.mind-reader", "Mind Reader", GetCurrentVersion(), typeof(MindReaderExtension)),
             ExtensionDescriptor.ForCore("msclaw.core.runtime-control", "Runtime Control", GetCurrentVersion(), typeof(RuntimeControlExtension))
         };
 
@@ -303,8 +306,14 @@ public sealed class ExtensionManager : IExtensionManager
             return;
         }
 
-        foreach (var manifestPath in Directory.EnumerateFiles(root, "plugin.json", SearchOption.AllDirectories))
+        foreach (var extensionPath in Directory.EnumerateDirectories(root))
         {
+            var manifestPath = Path.Combine(extensionPath, "plugin.json");
+            if (!File.Exists(manifestPath))
+            {
+                continue;
+            }
+
             if (!TryReadManifestDescriptor(manifestPath, tier, out var descriptor))
             {
                 continue;
@@ -405,10 +414,13 @@ public sealed class ExtensionManager : IExtensionManager
         while (pending.Count > 0)
         {
             var skippedInPass = new List<string>();
+            var resolvedOrCore = new HashSet<string>(
+                result.Select(r => r.Id).Concat(coreIds),
+                StringComparer.OrdinalIgnoreCase);
 
             foreach (var candidate in pending.Values.ToArray())
             {
-                if (HasPermanentDependencyFailure(candidate, pending, availableVersions, coreIds))
+                if (HasPermanentDependencyFailure(candidate, pending, availableVersions, resolvedOrCore))
                 {
                     skippedInPass.Add(candidate.Id);
                 }
@@ -424,12 +436,8 @@ public sealed class ExtensionManager : IExtensionManager
                 break;
             }
 
-            var loadedOrCore = new HashSet<string>(
-                result.Select(r => r.Id).Concat(coreIds),
-                StringComparer.OrdinalIgnoreCase);
-
             var ready = pending.Values
-                .Where(candidate => candidate.Dependencies.All(d => loadedOrCore.Contains(d.Id)))
+                .Where(candidate => candidate.Dependencies.All(d => resolvedOrCore.Contains(d.Id)))
                 .OrderBy(candidate => candidate.Id, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
@@ -480,7 +488,7 @@ public sealed class ExtensionManager : IExtensionManager
         ExtensionDescriptor candidate,
         IReadOnlyDictionary<string, ExtensionDescriptor> pending,
         IReadOnlyDictionary<string, NuGetVersion> versions,
-        ISet<string> coreIds)
+        ISet<string> resolvedOrCoreIds)
     {
         foreach (var dependency in candidate.Dependencies)
         {
@@ -491,7 +499,7 @@ public sealed class ExtensionManager : IExtensionManager
             }
 
             var depId = dependency.Id.Trim();
-            var knownDependency = pending.ContainsKey(depId) || coreIds.Contains(depId);
+            var knownDependency = pending.ContainsKey(depId) || resolvedOrCoreIds.Contains(depId);
             if (!knownDependency)
             {
                 _logger.LogError("Extension '{ExtensionId}' has missing dependency '{DependencyId}'. Skipping extension.", candidate.Id, depId);
@@ -940,80 +948,5 @@ internal sealed class ExtensionLoadContext : AssemblyLoadContext
     {
         var path = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
         return path is null ? nint.Zero : LoadUnmanagedDllFromPath(path);
-    }
-}
-
-internal sealed class MindReaderExtension : ExtensionBase
-{
-    private readonly IMindReader _mindReader;
-
-    public MindReaderExtension(IMindReader mindReader)
-    {
-        _mindReader = mindReader;
-    }
-
-    public override void Register(IMsClawPluginApi api)
-    {
-        api.RegisterTool(AIFunctionFactory.Create(ReadMindFileAsync));
-        api.RegisterTool(AIFunctionFactory.Create(ListMindDirectoryAsync));
-    }
-
-    [Description("Read a file from the active mind root.")]
-    public Task<string> ReadMindFileAsync(string path, CancellationToken cancellationToken = default)
-    {
-        return _mindReader.ReadFileAsync(path, cancellationToken);
-    }
-
-    [Description("List entries in a directory from the active mind root.")]
-    public async Task<string[]> ListMindDirectoryAsync(string path, CancellationToken cancellationToken = default)
-    {
-        var entries = await _mindReader.ListDirectoryAsync(path, cancellationToken);
-        return entries.ToArray();
-    }
-}
-
-internal sealed class RuntimeControlExtension : ExtensionBase
-{
-    private readonly IExtensionManager _extensionManager;
-    private readonly IServiceProvider _services;
-
-    public RuntimeControlExtension(IExtensionManager extensionManager, IServiceProvider services)
-    {
-        _extensionManager = extensionManager;
-        _services = services;
-    }
-
-    public override void Register(IMsClawPluginApi api)
-    {
-        api.RegisterCommand("/reload", ReloadAsync);
-        api.RegisterCommand("/extensions", ListExtensionsAsync);
-        api.RegisterHttpRoute(MapRoutes);
-    }
-
-    private void MapRoutes(IEndpointRouteBuilder routes)
-    {
-        routes.MapGet("/extensions", () => Results.Ok(_extensionManager.GetLoadedExtensions()));
-    }
-
-    private async Task<string> ReloadAsync(ExtensionCommandContext context, CancellationToken cancellationToken)
-    {
-        await _extensionManager.ReloadExternalAsync(cancellationToken);
-        var sessionControl = _services.GetService<ISessionControl>();
-        if (sessionControl is not null)
-        {
-            await sessionControl.CycleSessionsAsync(cancellationToken);
-        }
-
-        return "External extensions reloaded.";
-    }
-
-    private Task<string> ListExtensionsAsync(ExtensionCommandContext context, CancellationToken cancellationToken)
-    {
-        var rows = _extensionManager.GetLoadedExtensions()
-            .OrderBy(x => x.Tier)
-            .ThenBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
-            .Select(x => $"{x.Tier.ToString().ToLowerInvariant()}: {x.Id} {x.Version} started={x.Started} failed={x.Failed}");
-
-        return Task.FromResult(string.Join(Environment.NewLine, rows));
     }
 }
