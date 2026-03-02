@@ -62,7 +62,7 @@ Because `bootstrap.md` exists in a new mind, MsClaw enters bootstrap mode. The a
 2. **Agent file** — Role, domain, tools → creates `.github/agents/{name}.agent.md`
 3. **Memory** — Seeds `.working-memory/` with initial context from the conversation
 
-The easiest way to have this conversation is with the chat script below. The agent will ask you questions one at a time — answer naturally, it offers sensible defaults if you're unsure.
+The easiest way to have this conversation is with the chat script below. Start it up and just say "Hi" — the agent will walk you through the rest, asking questions one at a time. Answer naturally, it offers sensible defaults if you're unsure.
 
 ## Chat script (experimental)
 
