@@ -10,13 +10,17 @@
     <IsPackable>true</IsPackable>
     <ToolCommandName>msclaw</ToolCommandName>
     <PackageId>MsClaw</PackageId>
-    <Version>0.3.1</Version>
+    <Version>0.3.2</Version>
     <Authors>ianphil</Authors>
     <Description>MsClaw — an agentic runtime for AI minds</Description>
     <PackageProjectUrl>https://github.com/ianphil/msclaw</PackageProjectUrl>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MsClaw.Tests" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="GitHub.Copilot.SDK" Version="0.1.29" />
