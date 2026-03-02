@@ -5,7 +5,9 @@ namespace MsClaw.Core;
 
 public static class CliLocator
 {
-    public static string ResolveCopilotCliPath()
+    public static string ResolveCopilotCliPath() => ResolveCliPath("copilot");
+
+    internal static string ResolveCliPath(string binaryName)
     {
         var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         var command = isWindows ? "where" : "which";
@@ -16,7 +18,7 @@ public static class CliLocator
             process.StartInfo = new ProcessStartInfo
             {
                 FileName = command,
-                Arguments = "copilot",
+                Arguments = binaryName,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
                 UseShellExecute = false,
@@ -30,8 +32,8 @@ public static class CliLocator
             if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
             {
                 throw new InvalidOperationException(
-                    "Copilot CLI not found on PATH. " +
-                    "Install it via npm (`npm install -g @anthropic/copilot`) and ensure it is available on your system PATH.");
+                    $"Copilot CLI not found on PATH. " +
+                    $"Ensure '{binaryName}' is installed and available on your system PATH.");
             }
 
             // 'where' on Windows can return multiple lines; take the first match
@@ -45,7 +47,7 @@ public static class CliLocator
         catch (Exception ex)
         {
             throw new InvalidOperationException(
-                $"Failed to locate Copilot CLI on PATH using '{command} copilot': {ex.Message}", ex);
+                $"Failed to locate Copilot CLI on PATH using '{command} {binaryName}': {ex.Message}", ex);
         }
     }
 }
