@@ -26,10 +26,22 @@ This creates the mind structure at `~/my-agent/`:
 ```
 my-agent/
 ├── SOUL.md               # Identity file (template — you'll customize this)
-├── .working-memory/      # Persistent memory the agent reads/writes
 ├── bootstrap.md          # Triggers the bootstrap conversation
+├── .working-memory/      # Persistent memory the agent reads/writes
+│   ├── memory.md         # Long-term reference
+│   ├── rules.md          # Lessons learned
+│   └── log.md            # Chronological observations
+├── .github/
+│   ├── agents/           # Agent instruction files (created during bootstrap)
+│   └── skills/           # Agent skills
+├── domains/              # Domain knowledge
+├── initiatives/          # Active initiatives
+├── expertise/            # Expertise areas
+├── inbox/                # Incoming items
+├── Archive/              # Archived material
 ├── extensions/           # For plugins (empty for now)
-└── .github/agents/       # Agent instruction files (created during bootstrap)
+├── extensions.lock.json  # Pinned extension versions
+└── .gitignore            # Excludes extensions/
 ```
 
 MsClaw validates the mind, saves its location to `~/.msclaw/config.json`, and starts the server on **http://localhost:5050**.
