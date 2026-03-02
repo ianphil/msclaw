@@ -19,7 +19,7 @@ MsClaw is a .NET 9 C# application with these main pieces:
 
 1. **Program.cs** — CLI entry point, argument parsing, service registration
 2. **Core/** — Business logic: mind discovery, mind validation, mind reading, orchestration
-3. **Models/** — Data structures for configuration, chat requests/responses, session state
+3. **Models/** — Data structures for configuration and chat request/response payloads
 4. **Templates/** — Embedded templates for scaffolding new minds
 
 The app boots in this sequence:
@@ -44,6 +44,7 @@ sed -n '1,40p' src/MsClaw/Program.cs
 ```output
 using MsClaw.Core;
 using MsClaw.Models;
+using GitHub.Copilot.SDK;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -81,7 +82,6 @@ builder.Services.Configure<MsClawOptions>(opts =>
 // Register the same instances used during bootstrap — avoids duplicate instantiation
 builder.Services.AddSingleton<IMindValidator>(validator);
 builder.Services.AddSingleton<IConfigPersistence>(configPersistence);
-builder.Services.AddSingleton<IMindDiscovery>(discovery);
 ```
 
 The bootstrap phase happens **before** the HTTP server starts. MsClaw uses a BootstrapOrchestrator to:
@@ -96,11 +96,23 @@ sed -n '40,96p' src/MsClaw/Program.cs
 ```
 
 ```output
+builder.Services.AddSingleton<IConfigPersistence>(configPersistence);
 builder.Services.AddSingleton<IMindDiscovery>(discovery);
 builder.Services.AddSingleton<IMindScaffold>(scaffold);
 builder.Services.AddSingleton<IIdentityLoader, IdentityLoader>();
 
-builder.Services.AddSingleton<ISessionManager, SessionManager>();
+// Register CopilotClient as singleton
+builder.Services.AddSingleton<CopilotClient>(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MsClawOptions>>().Value;
+    return new CopilotClient(new CopilotClientOptions
+    {
+        Cwd = Path.GetFullPath(options.MindRoot),
+        AutoStart = true,
+        UseStdio = true
+    });
+});
+
 builder.Services.AddSingleton<IMindReader, MindReader>();
 builder.Services.AddSingleton<ICopilotRuntimeClient, CopilotRuntimeClient>();
 
@@ -108,15 +120,14 @@ var app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-app.MapPost("/session/new", async (ISessionManager sessionManager, CancellationToken cancellationToken) =>
+app.MapPost("/session/new", async (ICopilotRuntimeClient copilotClient, CancellationToken cancellationToken) =>
 {
-    var session = await sessionManager.CreateNewAsync(cancellationToken);
-    return Results.Ok(new { sessionId = session.SessionId });
+    var sessionId = await copilotClient.CreateSessionAsync(cancellationToken);
+    return Results.Ok(new { sessionId });
 });
 
 app.MapPost("/chat", async (
     ChatRequest request,
-    ISessionManager sessionManager,
     ICopilotRuntimeClient copilotClient,
     CancellationToken cancellationToken) =>
 {
@@ -125,51 +136,32 @@ app.MapPost("/chat", async (
         return Results.BadRequest(new { error = "message is required" });
     }
 
-    var session = await sessionManager.GetOrCreateAsync(cancellationToken);
+    var sessionId = request.SessionId;
 
-    session.Messages.Add(new SessionMessage
+    if (string.IsNullOrWhiteSpace(sessionId))
     {
-        Role = "user",
-        Content = request.Message,
-        Timestamp = DateTime.UtcNow
-    });
+        sessionId = await copilotClient.CreateSessionAsync(cancellationToken);
+    }
 
-    var assistantResponse = await copilotClient.GetAssistantResponseAsync(session.Messages, cancellationToken);
-
-    session.Messages.Add(new SessionMessage
-    {
-        Role = "assistant",
-        Content = assistantResponse,
-        Timestamp = DateTime.UtcNow
-    });
-
-    session.UpdatedAt = DateTime.UtcNow;
-    await sessionManager.SaveAsync(session, cancellationToken);
+    var response = await copilotClient.SendMessageAsync(sessionId, request.Message, cancellationToken);
 
     return Results.Ok(new ChatResponse
     {
-        Response = assistantResponse,
-        SessionId = session.SessionId
+        Response = response,
+        SessionId = sessionId
     });
 });
 
+app.Run();
 ```
 
-After bootstrap, the app registers all dependencies as singletons and exposes three HTTP endpoints:
+After bootstrap, the app registers all dependencies as singletons, including a singleton `CopilotClient`, and exposes three HTTP endpoints:
 
-- **GET /health** — Simple liveness probe. Used by Copilot Runtime to check if the agent is alive.
-- **POST /session/new** — Creates a new session with a fresh SessionId. The session is stored in memory and persists across requests.
-- **POST /chat** — The main chat endpoint. Takes a message, gets the assistant response from the Copilot Runtime, stores it in the session, and returns it to the caller.
+- **GET /health** — Simple liveness probe.
+- **POST /session/new** — Calls `ICopilotRuntimeClient.CreateSessionAsync` and returns a new session ID from the SDK.
+- **POST /chat** — Accepts `message` plus optional `sessionId`; if no session ID is provided, it creates one, then sends the message with `SendMessageAsync`.
 
-The chat endpoint is the core loop:
-1. Get or create a session
-2. Add the user message to the session history
-3. Call the Copilot Runtime client with the full message history
-4. Add the assistant response to the session
-5. Save the session
-6. Return the response
-
-This is the simple case. The real magic happens in the Copilot Runtime client and mind loading — let's look at those next.
+This shifts session state ownership to the SDK runtime instead of custom app-level persistence, while keeping the HTTP surface small and explicit.
 
 ## Mind Discovery and Validation
 
@@ -403,115 +395,75 @@ public sealed class MindReader : IMindReader
 
 MindReader has two responsibilities: (1) Keep the mind synced by pulling the latest from git (if AutoGitPull is enabled), and (2) Provide access to the mind's working memory. The git pull is a convenience feature — if the mind directory is a git repo, MsClaw can auto-update it before each chat. This is useful when the mind is stored in GitHub and you want the latest version automatically.
 
-## Session Management
+## Session Management — SDK-Native
 
-When a chat request comes in, MsClaw needs to track the conversation. SessionManager handles this. Let's look at how sessions work:
+Session tracking is now owned by the GitHub Copilot SDK, not by a custom `SessionManager`. MsClaw creates or resumes SDK sessions by session ID and forwards one message at a time; the SDK stores and compacts conversation history internally when `InfiniteSessions` is enabled.
 
 ```bash
-sed -n '1,60p' src/MsClaw/Core/SessionManager.cs
+cat src/MsClaw/Core/ICopilotRuntimeClient.cs
 ```
 
 ```output
-using System.Text.Json;
-using MsClaw.Models;
-using Microsoft.Extensions.Options;
-
 namespace MsClaw.Core;
 
-public sealed class SessionManager : ISessionManager
+public interface ICopilotRuntimeClient
 {
-    private const string ActiveSessionFile = "active-session-id.txt";
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    /// <summary>
+    /// Creates a new SDK session. Returns the session ID.
+    /// </summary>
+    Task<string> CreateSessionAsync(CancellationToken cancellationToken = default);
 
-    private readonly string _sessionStore;
-
-    public SessionManager(IOptions<MsClawOptions> options)
-    {
-        _sessionStore = Path.GetFullPath(options.Value.SessionStore);
-    }
-
-    public async Task<SessionState> GetOrCreateAsync(CancellationToken cancellationToken = default)
-    {
-        Directory.CreateDirectory(_sessionStore);
-        var activeSessionPath = Path.Combine(_sessionStore, ActiveSessionFile);
-
-        if (File.Exists(activeSessionPath))
-        {
-            var sessionId = (await File.ReadAllTextAsync(activeSessionPath, cancellationToken)).Trim();
-            if (!string.IsNullOrWhiteSpace(sessionId))
-            {
-                var filePath = GetSessionPath(sessionId);
-                if (File.Exists(filePath))
-                {
-                    await using var stream = File.OpenRead(filePath);
-                    var session = await JsonSerializer.DeserializeAsync<SessionState>(stream, cancellationToken: cancellationToken);
-                    if (session is not null)
-                    {
-                        return session;
-                    }
-                }
-            }
-        }
-
-        return await CreateNewAsync(cancellationToken);
-    }
-
-    public async Task<SessionState> CreateNewAsync(CancellationToken cancellationToken = default)
-    {
-        Directory.CreateDirectory(_sessionStore);
-
-        var session = new SessionState
-        {
-            SessionId = Guid.NewGuid().ToString(),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        await SaveAsync(session, cancellationToken);
-        return session;
-    }
-
-    public async Task SaveAsync(SessionState session, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Sends a single message to an existing session. Returns the assistant's response.
+    /// The SDK maintains conversation history internally.
+    /// </summary>
+    Task<string> SendMessageAsync(
+        string sessionId,
+        string message,
+        CancellationToken cancellationToken = default);
+}
 ```
 
-SessionManager persists conversations to disk. Here's the flow:
-1. **GetOrCreateAsync** — Check if there's an active session. If so, load it. If not, create a new one.
-2. **CreateNewAsync** — Generate a new SessionId, initialize timestamps, and save it.
-3. **SaveAsync** — Serialize the session to JSON and write it to the session store (usually in the mind directory under data/).
-
-Sessions are stored as individual JSON files per SessionId. An active-session-id.txt file tracks which session is currently active, so subsequent requests can load the same session. This gives continuity across multiple chat messages — the model remembers the entire conversation history because it's stored and reloaded with each request.
+At runtime, `CopilotRuntimeClient` keeps an in-memory `ConcurrentDictionary<string, CopilotSession>` to reuse active sessions efficiently. If a session isn't cached, it calls `ResumeSessionAsync`, caches the result, and continues the conversation without reconstructing history in app models.
 
 ## The Copilot Runtime Client
 
-This is where the magic happens. CopilotRuntimeClient sends the conversation history to the Copilot Runtime API along with the system message (the mind's identity). Let's see how it works:
+This is where the runtime bridge lives. `CopilotRuntimeClient` creates SDK sessions with the mind identity as system message, then sends one prompt per request against a session ID.
 
 ```bash
-sed -n '1,70p' src/MsClaw/Core/CopilotRuntimeClient.cs
+cat src/MsClaw/Core/CopilotRuntimeClient.cs
 ```
 
 ```output
-using System.Text;
 using GitHub.Copilot.SDK;
 using MsClaw.Models;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 
 namespace MsClaw.Core;
 
 public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
 {
+    private readonly CopilotClient _client;
     private readonly MsClawOptions _options;
     private readonly IIdentityLoader _identityLoader;
+    private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
 
-    public CopilotRuntimeClient(IOptions<MsClawOptions> options, IIdentityLoader identityLoader)
+    public CopilotRuntimeClient(
+        CopilotClient client,
+        IOptions<MsClawOptions> options,
+        IIdentityLoader identityLoader)
     {
+        _client = client;
         _options = options.Value;
         _identityLoader = identityLoader;
     }
 
-    public async Task<string> GetAssistantResponseAsync(IReadOnlyList<SessionMessage> messages, CancellationToken cancellationToken = default)
+    public async Task<string> CreateSessionAsync(CancellationToken cancellationToken = default)
     {
         var mindRoot = Path.GetFullPath(_options.MindRoot);
         var systemMessage = await _identityLoader.LoadSystemMessageAsync(mindRoot, cancellationToken);
+
         var bootstrapPath = Path.Combine(mindRoot, "bootstrap.md");
         if (File.Exists(bootstrapPath))
         {
@@ -519,20 +471,10 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
             systemMessage = bootstrapInstructions + "\n\n---\n\n" + systemMessage;
         }
 
-        await using var client = new CopilotClient(new CopilotClientOptions
-        {
-            Cwd = mindRoot,
-            AutoStart = true,
-            UseStdio = true
-        });
-
-        await client.StartAsync(cancellationToken);
-
-        await using var session = await client.CreateSessionAsync(new SessionConfig
+        var session = await _client.CreateSessionAsync(new SessionConfig
         {
             Model = _options.Model,
-            Streaming = false,
-            InfiniteSessions = new InfiniteSessionConfig { Enabled = false },
+            InfiniteSessions = new InfiniteSessionConfig { Enabled = true },
             OnPermissionRequest = PermissionHandler.ApproveAll,
             SystemMessage = new SystemMessageConfig
             {
@@ -541,36 +483,50 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
             }
         }, cancellationToken);
 
-        string? assistantMessage = null;
-        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _sessions[session.SessionId] = session;
+        return session.SessionId;
+    }
 
-        using var subscription = session.On(evt =>
+    public async Task<string> SendMessageAsync(
+        string sessionId,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await GetOrResumeSessionAsync(sessionId, cancellationToken);
+
+        var response = await session.SendAndWaitAsync(
+            new MessageOptions { Prompt = message },
+            timeout: TimeSpan.FromSeconds(120),
+            cancellationToken: cancellationToken);
+
+        return response?.Data?.Content
+            ?? throw new InvalidOperationException("No assistant response received from Copilot session.");
+    }
+
+    private async Task<CopilotSession> GetOrResumeSessionAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        if (_sessions.TryGetValue(sessionId, out var session))
         {
-            switch (evt)
-            {
-                case AssistantMessageEvent msg when !string.IsNullOrWhiteSpace(msg.Data.Content):
-                    assistantMessage = msg.Data.Content;
-                    break;
-                case SessionErrorEvent err:
-                    finished.TrySetException(new InvalidOperationException(err.Data.Message));
-                    break;
-                case SessionIdleEvent:
-                    finished.TrySetResult();
-                    break;
-            }
-        });
+            return session;
+        }
 
+        var resumedSession = await _client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        }, cancellationToken);
+
+        return _sessions.GetOrAdd(sessionId, resumedSession);
+    }
+}
 ```
 
-This is the critical part. CopilotRuntimeClient:
-1. **Loads the system message** — Calls IdentityLoader to get SOUL.md + agents
-2. **Checks for bootstrap.md** — If it exists, prepends bootstrap instructions to the system message
-3. **Creates a CopilotClient** — Connects to the Copilot Runtime via stdio
-4. **Creates a session** — Specifies the model, system message mode (Replace), and disables infinite sessions
-5. **Sends messages** — Passes the conversation history
-6. **Listens for events** — Waits for AssistantMessageEvent (the response), SessionErrorEvent (errors), or SessionIdleEvent (done)
+Key behavior in the new implementation:
+1. **Singleton client lifecycle** — `CopilotClient` is injected once and reused across requests.
+2. **Explicit session lifecycle** — `CreateSessionAsync` sets model/system message and enables `InfiniteSessions`.
+3. **Message routing by session ID** — `SendMessageAsync` sends a single prompt to a resumed or cached SDK session.
+4. **In-memory session cache** — `_sessions` avoids repeated resume calls for active sessions.
 
-The key insight: The system message (the mind's identity) is injected here. The Copilot Runtime receives both the identity and the conversation history, so the model responds as this specific agent with this specific mind. The session is closed after the response, so the actual chat state is managed by MsClaw (in SessionManager), not by the Copilot Runtime.
+The identity injection point is unchanged (SOUL + agent files, optionally prefixed by bootstrap.md), but session ownership moved fully into the SDK.
 
 ## Mind Scaffolding
 
@@ -666,8 +622,15 @@ public sealed class ConfigPersistence : IConfigPersistence
             return null;
         }
 
-        var json = File.ReadAllText(_configPath);
-        return JsonSerializer.Deserialize<MsClawConfig>(json, JsonOptions);
+        try
+        {
+            var json = File.ReadAllText(_configPath);
+            return JsonSerializer.Deserialize<MsClawConfig>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public void Save(MsClawConfig config)
@@ -694,42 +657,11 @@ public sealed class ConfigPersistence : IConfigPersistence
 }
 ```
 
-ConfigPersistence is simple: it stores a MsClawConfig to ~/.msclaw/config.json. The config contains the MindRoot path and a LastUsed timestamp. On startup, MindDiscovery checks the saved config first before trying convention paths. If the user runs --reset-config, it clears the saved config and exits — useful when you want MsClaw to re-discover the mind on the next run.
+ConfigPersistence stores `MsClawConfig` at `~/.msclaw/config.json` with `MindRoot` and `LastUsed`. `Load()` now fails open for corrupted JSON by catching `JsonException` and returning `null`, so startup can continue with discovery instead of crashing. `--reset-config` still clears the file and exits.
 
 ## Data Models
 
 Let's look at the key data structures that flow through the system.
-
-```bash
-cat src/MsClaw/Models/SessionState.cs
-```
-
-```output
-namespace MsClaw.Models;
-
-public sealed class SessionState
-{
-    public required string SessionId { get; init; }
-    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-    public List<SessionMessage> Messages { get; init; } = [];
-}
-```
-
-```bash
-cat src/MsClaw/Models/SessionMessage.cs
-```
-
-```output
-namespace MsClaw.Models;
-
-public sealed class SessionMessage
-{
-    public required string Role { get; init; }
-    public required string Content { get; init; }
-    public DateTime Timestamp { get; init; } = DateTime.UtcNow;
-}
-```
 
 ```bash
 cat src/MsClaw/Models/ChatRequest.cs && echo && cat src/MsClaw/Models/ChatResponse.cs
@@ -741,6 +673,7 @@ namespace MsClaw.Models;
 public sealed class ChatRequest
 {
     public string Message { get; set; } = string.Empty;
+    public string? SessionId { get; set; }
 }
 
 namespace MsClaw.Models;
@@ -752,13 +685,11 @@ public sealed class ChatResponse
 }
 ```
 
-The data models are minimal by design:
-- **SessionState** — Holds a unique SessionId, creation/update timestamps, and the list of messages in the conversation.
-- **SessionMessage** — A single message with a role ("user" or "assistant"), content, and timestamp.
-- **ChatRequest** — Incoming HTTP request with just a Message field.
-- **ChatResponse** — HTTP response with the Response text and the SessionId (so the client knows which session was used).
+The chat payload models are minimal:
+- **ChatRequest** — Incoming HTTP request with required `Message` and optional `SessionId` (for continuing a prior SDK session).
+- **ChatResponse** — HTTP response containing `Response` and `SessionId`.
 
-This simplicity is intentional. MsClaw is not a chat library; it's a thin adapter between HTTP requests and the Copilot Runtime API.
+MsClaw stays a thin HTTP adapter: clients provide a prompt (and optionally a session ID), and the SDK handles the conversation state.
 
 ## Bootstrap Orchestration
 
@@ -866,40 +797,33 @@ This ensures that by the time the HTTP server starts, the mind is valid, the pat
 
 Now let's trace what happens when a user sends a chat message:
 
-1. HTTP POST to /chat with {message: "Hello"}
-2. SessionManager.GetOrCreateAsync() — Load the active session or create a new one
-3. Add the user message to session.Messages
-4. CopilotRuntimeClient.GetAssistantResponseAsync():
-   - IdentityLoader.LoadSystemMessageAsync() — Read SOUL.md + agent files
-   - Check for bootstrap.md and prepend it if it exists
-   - Create a CopilotClient connection to the Copilot Runtime
-   - Create a session with SystemMessage = (bootstrap + SOUL + agents)
-   - Send the conversation history (system message + all messages)
-   - Listen for AssistantMessageEvent
-   - Return the response
-5. Add the assistant message to session.Messages
-6. SessionManager.SaveAsync() — Write the session to disk
-7. Return {response: "...", sessionId: "..."} to the client
+1. HTTP POST to `/chat` with `{ message: "Hello", sessionId?: "..." }`
+2. If `sessionId` is missing, `ICopilotRuntimeClient.CreateSessionAsync()` creates an SDK session and returns its ID
+3. `ICopilotRuntimeClient.SendMessageAsync(sessionId, message)` runs:
+   - Reuse cached `CopilotSession` or call `ResumeSessionAsync(sessionId)`
+   - Send one prompt via `SendAndWaitAsync`
+   - Return assistant content
+4. API returns `{ response: "...", sessionId: "..." }`
 
-The mind is loaded fresh for each chat request, so if SOUL.md or agent files change, the next request sees the updates. The session history is maintained separately on disk.
+System message composition (SOUL + agents + optional bootstrap.md) happens when sessions are created; subsequent messages continue that session in the SDK.
 
 ## Architecture Summary
 
 MsClaw is an elegant solution to a specific problem: **How do you give a persistent identity to an AI agent in a stateless system?**
 
 **The answer:**
-- Store the identity (SOUL.md) on disk
-- Load it at request time
-- Inject it as a system message to the Copilot Runtime
-- Maintain conversation history separately from the model
+- Store the identity (SOUL.md + agent files) on disk
+- Inject it as a system message when creating SDK sessions
+- Route chat turns over lightweight HTTP endpoints
+- Let the SDK persist and compact conversation history
 
 **Key design choices:**
 - **Minimal HTTP API** — Just three endpoints: /health, /session/new, /chat
-- **File-based persistence** — No databases. Configuration and sessions are JSON files.
+- **Lightweight persistence** — Config is stored in JSON; chat session state is SDK-managed
 - **Loose coupling** — Each component has a single responsibility and a clear interface
 - **Convention over configuration** — Mind directories follow a standard structure; paths are discovered automatically
-- **Fresh loads** — The mind is loaded from disk on each request, so changes are immediately visible
-- **Session management** — Conversations are stored in JSON, enabling long-running discussions across multiple requests
+- **Identity-at-session-creation** — System message is loaded when creating a session
+- **SDK-native session management** — Session IDs flow through HTTP, while the SDK owns turn history
 
 This design makes MsClaw:
 - Easy to run (just a single binary + a mind directory)

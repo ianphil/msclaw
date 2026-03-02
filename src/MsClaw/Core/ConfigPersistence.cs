@@ -32,8 +32,15 @@ public sealed class ConfigPersistence : IConfigPersistence
             return null;
         }
 
-        var json = File.ReadAllText(_configPath);
-        return JsonSerializer.Deserialize<MsClawConfig>(json, JsonOptions);
+        try
+        {
+            var json = File.ReadAllText(_configPath);
+            return JsonSerializer.Deserialize<MsClawConfig>(json, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     public void Save(MsClawConfig config)

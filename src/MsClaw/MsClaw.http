@@ -8,7 +8,7 @@ POST {{host}}/chat
 Content-Type: application/json
 
 {
-  "message": "write this convo to your handover and I'll switch back to our chat from msclaw"
+  "message": "where's a place you've always wanted to visit?"
 }
 
 ### Start a new session

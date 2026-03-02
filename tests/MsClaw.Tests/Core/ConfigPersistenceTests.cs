@@ -48,6 +48,42 @@ public class ConfigPersistenceTests : IDisposable
     }
 
     [Fact]
+    public void Load_MalformedJson_ReturnsNull()
+    {
+        var sut = new ConfigPersistence(_configPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
+        File.WriteAllText(_configPath, "{ definitely-not-json");
+
+        var loaded = sut.Load();
+
+        Assert.Null(loaded);
+    }
+
+    [Fact]
+    public void Load_EmptyFile_ReturnsNull()
+    {
+        var sut = new ConfigPersistence(_configPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
+        File.WriteAllText(_configPath, string.Empty);
+
+        var loaded = sut.Load();
+
+        Assert.Null(loaded);
+    }
+
+    [Fact]
+    public void Load_PartialJson_ReturnsNull()
+    {
+        var sut = new ConfigPersistence(_configPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
+        File.WriteAllText(_configPath, "{\"LastUsed\":");
+
+        var loaded = sut.Load();
+
+        Assert.Null(loaded);
+    }
+
+    [Fact]
     public void Clear_RemovesConfigFile()
     {
         var sut = new ConfigPersistence(_configPath);
@@ -78,5 +114,41 @@ public class ConfigPersistenceTests : IDisposable
 
         Assert.NotNull(config.LastUsed);
         Assert.True(config.LastUsed <= DateTime.UtcNow.AddSeconds(1));
+    }
+
+    [Fact]
+    public void Load_CorruptedJsonWithNullBytes_ReturnsNull()
+    {
+        var sut = new ConfigPersistence(_configPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
+        File.WriteAllBytes(_configPath, [0x7B, 0x00, 0x22, 0x4D, 0x69, 0x6E, 0x64, 0x52, 0x6F, 0x6F, 0x74, 0x22, 0x3A, 0x22, 0x2F, 0x74, 0x6D, 0x70, 0x22, 0x7D]); // {"MindRoot":"/tmp"} with null byte
+
+        var loaded = sut.Load();
+
+        Assert.Null(loaded);
+    }
+
+    [Fact]
+    public void Load_JsonWithInvalidUtf8_ReturnsNull()
+    {
+        var sut = new ConfigPersistence(_configPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
+        File.WriteAllBytes(_configPath, [0xFF, 0xFE, 0x7B, 0x22, 0x4D, 0x69, 0x6E, 0x64, 0x52, 0x6F, 0x6F, 0x74, 0x22, 0x3A, 0x22, 0x2F, 0x74, 0x6D, 0x70, 0x22, 0x7D]); // BOM + JSON
+
+        var loaded = sut.Load();
+
+        Assert.Null(loaded);
+    }
+
+    [Fact]
+    public void Load_TruncatedJsonObject_ReturnsNull()
+    {
+        var sut = new ConfigPersistence(_configPath);
+        Directory.CreateDirectory(Path.GetDirectoryName(_configPath)!);
+        File.WriteAllText(_configPath, "{\"MindRoot\":\"/tmp\",\"LastUsed\":\"2026-03-01T");
+
+        var loaded = sut.Load();
+
+        Assert.Null(loaded);
     }
 }

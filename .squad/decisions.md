@@ -150,3 +150,123 @@ Direct `Environment.Exit(...)` inside orchestration logic is difficult to test a
 - Callers must treat `null` as "bootstrap handled; exit 0"
 - Non-null results still represent a resolved/validated mind root for normal startup
 - Validation and usage failures continue to throw `InvalidOperationException` with detailed messages
+
+---
+
+## 2026-03-02T01:04:00Z: Session Management Refactor — Architecture
+
+**By:** Q (Lead / Architect)  
+**Requested by:** Ian Philpot  
+**Scope:** `CopilotClient` lifecycle, `ICopilotRuntimeClient` contract, session persistence
+
+### Problem
+
+1. **CopilotClient created per request** — Spawns CLI process, creates session, sends one message, disposes. Every request.
+2. **BuildPrompt stuffs full history** — Concatenates all messages into single text blob; SDK sees one giant user message, not a conversation.
+3. **SessionManager duplicates SDK persistence** — Custom JSON + active-session-id.txt replicates what SDK already provides via `ResumeSessionAsync` / `GetLastSessionIdAsync`.
+
+### Solution
+
+**Principle:** Let the SDK own session state. We own HTTP routing.
+
+**Changes:**
+- Singleton `CopilotClient` registered in DI, spawned once at startup
+- New `ICopilotRuntimeClient` interface: `CreateSessionAsync`, `SendMessageAsync` (replaces `GetAssistantResponseAsync(messages[])`)
+- Enable `InfiniteSessions` for automatic context compaction and workspace persistence
+- Delete 4 files: `SessionManager`, `ISessionManager`, `SessionState`, `SessionMessage`
+- Rewrite 2: `ICopilotRuntimeClient`, `CopilotRuntimeClient`
+- Modify 3: `ChatRequest` (+SessionId), `MsClawOptions` (-SessionStore), `Program.cs`
+
+### Consequences
+
+- **SDK owns conversation state** — Between HTTP requests, history lives in CLI process + workspace
+- **Cleaner abstraction** — Callers send one message per request, not full history
+- **No manual history truncation** — InfiniteSessions handles context limits automatically
+- **System message loaded at session creation** — If SOUL.md changes mid-session, old message persists until new session
+
+### Rationale
+
+Custom persistence pays cost, loses SDK features (compaction, workspace, turn tracking), spawns CLI per request. SDK provides all this natively.
+
+---
+
+## 2026-03-02T01:04:00Z: Session Refactor Implementation — Build Status
+
+**By:** Felix (Backend Dev)  
+**Requested by:** Q (via Ian)  
+**Scope:** Code changes per Q's session refactor design
+
+### Deliverables
+
+- Deleted: `SessionManager.cs`, `ISessionManager.cs`, `SessionState.cs`, `SessionMessage.cs`
+- Rewrote: `ICopilotRuntimeClient.cs`, `CopilotRuntimeClient.cs` with SDK-native pattern
+- Modified: `ChatRequest.cs` (+SessionId), `MsClawOptions.cs` (-SessionStore), `Program.cs` (DI + endpoints)
+
+### Build Result
+
+✅ **0 errors, 0 warnings**
+
+### Implementation Notes
+
+- `CopilotClient` registered as singleton with `AutoStart = true`, `UseStdio = true`
+- `CreateSessionAsync` loads system message (SOUL.md + bootstrap.md), creates SDK session with `InfiniteSessions = true`
+- `SendMessageAsync` resumes session by ID, calls `SendAndWaitAsync` with 120s timeout
+- HTTP endpoints: `/session/new` returns session ID; `/chat` accepts optional `SessionId` in request
+
+---
+
+## 2026-03-02T01:04:00Z: Testing Boundary — Session Refactor
+
+**By:** Natalya (Tester)  
+**Requested by:** Q (via Ian)  
+**Scope:** Unit tests and SDK integration strategy
+
+### Decision
+
+**Unit test model contracts. Document SDK integration boundary. Do not mock sealed SDK classes.**
+
+### What Was Tested
+
+1. **ChatRequest** — SessionId optional, Message required (6 tests)
+2. **MsClawOptions** — SessionStore removed, other properties validated (7 tests)
+3. **Total test suite** — 47 passing tests (13 new)
+
+### What Was NOT Tested (By Design)
+
+- `CopilotRuntimeClient` SDK layer (sealed `CopilotClient` cannot be mocked)
+- Session creation/resumption (requires CLI process)
+- InfiniteSessions compaction (SDK concern, not ours)
+
+**Rationale:** Avoid mock theater. Test what we own (model contracts, interface boundaries). Integration tests are appropriate for SDK layer. Documentation for future work.
+
+### Artifact
+
+`tests/MsClaw.Tests/CopilotRuntimeClientIntegrationScopeTests.cs` documents the boundary and future integration test strategy.
+
+---
+
+## 2026-03-02T01:51:00Z: Cache Runtime Sessions and Fail Open on Corrupt Config
+
+**By:** Felix  
+**Requested by:** Ian Philpot  
+**Scope:** `src/MsClaw/Core/CopilotRuntimeClient.cs`, `src/MsClaw/Core/ICopilotRuntimeClient.cs`, `src/MsClaw/Core/ConfigPersistence.cs`
+
+### Decision
+
+1. Cache `CopilotSession` instances in `CopilotRuntimeClient` using `ConcurrentDictionary<string, CopilotSession>` and reuse cached sessions by `sessionId`.
+2. Remove `IAsyncDisposable` from `ICopilotRuntimeClient` and delete no-op `DisposeAsync` from implementation.
+3. Treat malformed `~/.msclaw/config.json` as missing config by catching `JsonException` in `ConfigPersistence.Load()` and returning `null`.
+
+### Why
+
+- Calling `ResumeSessionAsync` on every message creates untracked session instances and grows SDK session state over time.
+- Async-dispose in the runtime client contract implied ownership cleanup that does not exist in DI-managed lifecycle.
+- Corrupt user config should not block startup when discovery/scaffold can continue.
+
+### Consequences
+
+- Long-running server process no longer leaks resumed session objects for active conversation IDs.
+- Callers no longer need `await using` semantics around `ICopilotRuntimeClient`.
+- Bootstrap path is resilient to invalid JSON in persisted config.
+
+---
