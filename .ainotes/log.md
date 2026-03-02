@@ -21,3 +21,16 @@
 - anti-pattern: BuildPrompt pattern (stuffing full conversation as text blob) replaced — SDK maintains proper user/assistant turn history natively
 - architecture: System message (SOUL.md + agents) is set once at session creation, not re-sent per message
 - spec: Distilled phase2-design.md (extension system) into a clean extension-spec.md — separated "what/why" (spec) from "how" (design with code examples); resolved all 4 open questions and integrated answers inline
+- architecture: Extension system uses two-tier discovery — `{appRoot}/extensions` for core, `{mindRoot}/extensions` for mind-local; mind-root can override core by matching extension ID
+- architecture: ExtensionManager loads core extensions first (in-process), then external extensions from DLL assemblies with manifest-driven dependency ordering using SemVer range checks
+- architecture: ISessionControl interface decouples extension reload from session lifecycle — allows warm reload of external extensions without app restart
+- architecture: CopilotRuntimeClient collects registered tools from all extensions into SessionConfig.Tools at session creation; hooks fire async for session/message/bootstrap events
+- convention: Extension manifests use `plugin.json` with id, name, version, entryPoint, and optional dependencies map
+- convention: Mind scaffolding now creates `extensions/` dir, `extensions.lock.json`, and adds extension paths to mind-local `.gitignore`
+- convention: MsClawConfig.DisabledExtensions holds a list of extension IDs to skip during loading
+- documentation: Created comprehensive extension-developer-guide.md — hands-on walkthrough for extension developers covering full IExtension lifecycle, tool/command/hook registration, configuration, testing, and common patterns; included ASP.NET limitation (HTTP routes frozen after startup) with documented workaround
+- docs: Removed duplicate "Extension System: A New Architecture" section from msclaw-walkthrough.md (merge artifact from Showboat generation)
+- phase2-review: Marked item 6 (HTTP route reload limitation) as complete with documentation link
+- extension-runtime: Warm reload semantics are safest when session cycling lives in `ReloadExternalAsync` itself, not only in a command wrapper
+- dependency-ordering: Dependency "missing" checks in topo sort must include already-resolved nodes, not just pending/core sets
+- tooling: Mind-scoped file tools can be removed from core when relying on Copilot CLI built-in file tools; no hard runtime dependency required

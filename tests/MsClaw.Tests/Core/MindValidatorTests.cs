@@ -92,6 +92,7 @@ public class MindValidatorTests
         Assert.Contains(result.Found, item => item.Contains("expertise", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Found, item => item.Contains("inbox", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Found, item => item.Contains("archive", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Found, item => item.Contains("extensions", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Found, item => item.Contains("agents", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(result.Found, item => item.Contains("skills", StringComparison.OrdinalIgnoreCase));
     }

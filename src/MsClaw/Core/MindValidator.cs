@@ -54,6 +54,7 @@ public sealed class MindValidator : IMindValidator
         CheckOptionalDirectory(mindRoot, "expertise", warnings, found);
         CheckOptionalDirectory(mindRoot, "inbox", warnings, found);
         CheckOptionalDirectory(mindRoot, "Archive", warnings, found);
+        CheckOptionalDirectory(mindRoot, "extensions", warnings, found);
 
         return new MindValidationResult
         {

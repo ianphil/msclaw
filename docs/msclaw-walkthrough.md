@@ -1,24 +1,24 @@
 # MsClaw — Code Walkthrough
 
-*2026-03-01T23:47:15Z by Showboat 0.6.1*
-<!-- showboat-id: 58fe5f57-308e-4f16-b71f-636279914a04 -->
+*2026-03-02T04:32:39Z by Showboat 0.6.1*
+<!-- showboat-id: 826cc533-ce4a-4d76-9415-d9964866e30a -->
 
 # What is MsClaw?
 
-MsClaw is a GitHub Copilot Extension that gives AI agents a **persistent identity** — a "mind". Instead of starting fresh with each conversation, MsClaw loads a mind directory containing an identity file (SOUL.md), agent definitions, and working memory, then serves it as a Copilot agent through the GitHub Copilot Runtime API.
+MsClaw is a GitHub Copilot Extension that gives AI agents a **persistent identity** — a 'mind'. Instead of starting fresh with each conversation, MsClaw loads a mind directory containing an identity file (SOUL.md), agent definitions, and working memory, then serves it as a Copilot agent through the GitHub Copilot Runtime API.
 
 Think of it like this:
 - **Without MsClaw**: Every conversation with Copilot is stateless. The agent has no memory of previous interactions, no persistent identity, no ongoing context.
 - **With MsClaw**: An agent has a mind with a defined SOUL, can load its own agents, maintains working memory, and persists across sessions.
 
-The core responsibility is simple: **load a mind directory, validate it, and expose it through the Copilot Runtime API on localhost:5050**.
+The core responsibility is simple: **load a mind directory, validate it, expose it through the Copilot Runtime API on localhost:5050, and provide an extension system for dynamic behavior injection**.
 
 ## Architecture Overview
 
 MsClaw is a .NET 9 C# application with these main pieces:
 
 1. **Program.cs** — CLI entry point, argument parsing, service registration
-2. **Core/** — Business logic: mind discovery, mind validation, mind reading, orchestration
+2. **Core/** — Business logic: mind discovery, validation, reading, orchestration, and extension management
 3. **Models/** — Data structures for configuration and chat request/response payloads
 4. **Templates/** — Embedded templates for scaffolding new minds
 
@@ -27,18 +27,17 @@ The app boots in this sequence:
 2. Scaffold a mind if --new-mind was specified
 3. Validate the mind directory
 4. Load the mind's identity, agents, and working memory
-5. Register a Copilot agent with the Runtime
-6. Start an HTTP server listening on :5050
-7. Handle incoming chat requests in the Copilot Runtime protocol
-
-Let's walk through the code to understand each piece.
+5. Initialize the extension system (load core and external extensions)
+6. Register a Copilot agent with the Runtime
+7. Start an HTTP server listening on :5050
+8. Handle incoming chat requests and extension hooks
 
 ## Entry Point: Program.cs
 
 Program.cs is the first code that runs. It parses CLI arguments, sets up dependency injection, and starts the HTTP server.
 
 ```bash
-sed -n '1,40p' src/MsClaw/Program.cs
+sed -n '1,50p' src/MsClaw/Program.cs
 ```
 
 ```output
@@ -82,6 +81,16 @@ builder.Services.Configure<MsClawOptions>(opts =>
 // Register the same instances used during bootstrap — avoids duplicate instantiation
 builder.Services.AddSingleton<IMindValidator>(validator);
 builder.Services.AddSingleton<IConfigPersistence>(configPersistence);
+builder.Services.AddSingleton<IMindDiscovery>(discovery);
+builder.Services.AddSingleton<IMindScaffold>(scaffold);
+builder.Services.AddSingleton<IIdentityLoader, IdentityLoader>();
+builder.Services.AddSingleton<IMindReader, MindReader>();
+builder.Services.AddSingleton<ExtensionManager>();
+builder.Services.AddSingleton<IExtensionManager>(sp => sp.GetRequiredService<ExtensionManager>());
+
+// Register CopilotClient as singleton
+builder.Services.AddSingleton<CopilotClient>(sp =>
+{
 ```
 
 The bootstrap phase happens **before** the HTTP server starts. MsClaw uses a BootstrapOrchestrator to:
@@ -89,19 +98,13 @@ The bootstrap phase happens **before** the HTTP server starts. MsClaw uses a Boo
 2. Auto-discover or scaffold it based on CLI arguments
 3. Persist the configuration for next runs
 
-This is important because all downstream services (IMindReader, IMindValidator, etc.) depend on knowing the mind root path upfront. If the mind is invalid, the app exits with an error message before the server even starts.
+This is important because all downstream services (IMindReader, IMindValidator, etc.) depend on knowing the mind root path upfront. Notice that ExtensionManager is registered as a singleton—this is the new feature that enables dynamic behavior injection.
 
 ```bash
-sed -n '40,96p' src/MsClaw/Program.cs
+sed -n '49,90p' src/MsClaw/Program.cs
 ```
 
 ```output
-builder.Services.AddSingleton<IConfigPersistence>(configPersistence);
-builder.Services.AddSingleton<IMindDiscovery>(discovery);
-builder.Services.AddSingleton<IMindScaffold>(scaffold);
-builder.Services.AddSingleton<IIdentityLoader, IdentityLoader>();
-
-// Register CopilotClient as singleton
 builder.Services.AddSingleton<CopilotClient>(sp =>
 {
     var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MsClawOptions>>().Value;
@@ -113,10 +116,13 @@ builder.Services.AddSingleton<CopilotClient>(sp =>
     });
 });
 
-builder.Services.AddSingleton<IMindReader, MindReader>();
-builder.Services.AddSingleton<ICopilotRuntimeClient, CopilotRuntimeClient>();
+builder.Services.AddSingleton<CopilotRuntimeClient>();
+builder.Services.AddSingleton<ICopilotRuntimeClient>(sp => sp.GetRequiredService<CopilotRuntimeClient>());
+builder.Services.AddSingleton<ISessionControl>(sp => sp.GetRequiredService<CopilotRuntimeClient>());
 
 var app = builder.Build();
+var extensionManager = app.Services.GetRequiredService<IExtensionManager>();
+await extensionManager.InitializeAsync();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
@@ -126,9 +132,9 @@ app.MapPost("/session/new", async (ICopilotRuntimeClient copilotClient, Cancella
     return Results.Ok(new { sessionId });
 });
 
-app.MapPost("/chat", async (
+app.MapPost("/command", async (
     ChatRequest request,
-    ICopilotRuntimeClient copilotClient,
+    IExtensionManager extensionManager,
     CancellationToken cancellationToken) =>
 {
     if (string.IsNullOrWhiteSpace(request.Message))
@@ -136,168 +142,415 @@ app.MapPost("/chat", async (
         return Results.BadRequest(new { error = "message is required" });
     }
 
-    var sessionId = request.SessionId;
-
-    if (string.IsNullOrWhiteSpace(sessionId))
+    var result = await extensionManager.TryExecuteCommandAsync(request.Message, request.SessionId, cancellationToken);
+    if (result is null)
     {
-        sessionId = await copilotClient.CreateSessionAsync(cancellationToken);
+        return Results.BadRequest(new { error = "input is not a command" });
     }
-
-    var response = await copilotClient.SendMessageAsync(sessionId, request.Message, cancellationToken);
-
-    return Results.Ok(new ChatResponse
-    {
-        Response = response,
-        SessionId = sessionId
-    });
-});
-
-app.Run();
 ```
 
-After bootstrap, the app registers all dependencies as singletons, including a singleton `CopilotClient`, and exposes three HTTP endpoints:
+After building the app, Program.cs initializes the extension system before starting the HTTP server. The extension manager hooks into the application lifecycle: it initializes on startup and shuts down gracefully when the app stops.
 
-- **GET /health** — Simple liveness probe.
-- **POST /session/new** — Calls `ICopilotRuntimeClient.CreateSessionAsync` and returns a new session ID from the SDK.
-- **POST /chat** — Accepts `message` plus optional `sessionId`; if no session ID is provided, it creates one, then sends the message with `SendMessageAsync`.
+The app exposes three main endpoints:
+- **/health** — Simple health check
+- **/session/new** — Create a new Copilot session
+- **/command** — Execute extension commands (anything starting with /)
 
-This shifts session state ownership to the SDK runtime instead of custom app-level persistence, while keeping the HTTP surface small and explicit.
+The /command endpoint is new—it delegates message processing to the extension manager, allowing extensions to intercept and handle slash commands.
 
-## Mind Discovery and Validation
+## The Extension System: A New Architecture
 
-Before we can serve a mind, we need to find it and verify it's valid. This is where MindDiscovery and MindValidator come in.
+The extension system is the major new feature in MsClaw. It allows external code to hook into the application lifecycle, register tools, handle commands, and extend HTTP endpoints—all without modifying the core codebase.
 
-MindDiscovery has three strategies:
-1. **Explicit path via --mind** — User specifies the mind directory directly.
-2. **Scaffolded path via --new-mind** — Create a new mind from embedded templates.
-3. **Auto-discovery** — Check convention paths or a saved config from a previous run.
+### Extension Abstractions
 
-Let's look at the discovery logic:
+Extensions implement a simple interface. Let's look at the abstraction layer.
 
 ```bash
-sed -n '1,35p' src/MsClaw/Core/MindDiscovery.cs
+sed -n '1,50p' src/MsClaw/Core/ExtensionAbstractions.cs
 ```
 
 ```output
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Hosting;
+
 namespace MsClaw.Core;
 
-public sealed class MindDiscovery : IMindDiscovery
+public interface IExtension : IAsyncDisposable
 {
-    private readonly IConfigPersistence _configPersistence;
-    private readonly IMindValidator _validator;
+    void Register(IMsClawPluginApi api);
+    Task StartAsync(CancellationToken cancellationToken = default);
+    Task StopAsync(CancellationToken cancellationToken = default);
+}
 
-    public MindDiscovery(IConfigPersistence configPersistence, IMindValidator validator)
-    {
-        _configPersistence = configPersistence;
-        _validator = validator;
-    }
+public abstract class ExtensionBase : IExtension
+{
+    public abstract void Register(IMsClawPluginApi api);
 
-    public string? Discover()
-    {
-        var cachedMindRoot = _configPersistence.Load()?.MindRoot;
-        if (IsValidCandidate(cachedMindRoot))
-        {
-            return cachedMindRoot;
-        }
+    public virtual Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        var currentDirectory = Directory.GetCurrentDirectory();
-        if (IsValidCandidate(currentDirectory))
-        {
-            return currentDirectory;
-        }
+    public virtual Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
-        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var msclawMind = Path.Combine(home, ".msclaw", "mind");
-        if (IsValidCandidate(msclawMind))
-        {
-            return msclawMind;
-        }
+    public virtual ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
 
-        return null;
+public interface IMsClawPluginApi
+{
+    string ExtensionId { get; }
+    JsonElement? Config { get; }
+
+    void RegisterTool(AIFunction tool);
+    void RegisterHook(string eventName, ExtensionHookHandler handler);
+    void RegisterService(IHostedService service);
+    void RegisterCommand(string command, ExtensionCommandHandler handler);
+    void RegisterHttpRoute(Action<IEndpointRouteBuilder> mapRoute);
+}
+
+public delegate Task ExtensionHookHandler(ExtensionHookContext context, CancellationToken cancellationToken);
+
+public delegate Task<string> ExtensionCommandHandler(ExtensionCommandContext context, CancellationToken cancellationToken);
+
+public sealed class ExtensionHookContext
+{
+    public required string EventName { get; init; }
+    public string? SessionId { get; init; }
+    public string? Message { get; init; }
+    public string? Response { get; init; }
+}
+
 ```
 
-Discovery follows a priority order:
-1. **Cached config** — Check if a previous run saved a mind path (in ConfigPersistence).
-2. **Current directory** — Check if the current working directory is a valid mind.
-3. **~/.msclaw/mind** — Convention path for the default mind.
+An extension starts by implementing **IExtension**, which has three lifecycle methods:
+- **Register(IMsClawPluginApi api)** — Called once during initialization. This is where the extension tells MsClaw what it provides: tools, hooks, commands, services, HTTP routes.
+- **StartAsync()** — Called after all extensions are loaded. Good for starting background services or logging.
+- **StopAsync()** — Called during shutdown. Extensions can clean up resources.
 
-Each candidate is validated by calling `IsValidCandidate()`, which uses the MindValidator to check if the directory structure is correct.
+The **IMsClawPluginApi** interface is the contract between MsClaw and extensions. An extension calls methods on this API to register:
+- **RegisterTool(AIFunction)** — Add an AI function the Copilot agent can call
+- **RegisterHook(eventName, handler)** — Listen for MsClaw lifecycle events
+- **RegisterCommand(command, handler)** — Handle slash commands (e.g., /memory, /reset)
+- **RegisterService(IHostedService)** — Register a background service
+- **RegisterHttpRoute(mapRoute)** — Add custom HTTP endpoints
 
-Discovery follows a priority order: (1) Cached config from previous run, (2) Current directory, (3) Convention path ~/.msclaw/mind. Each candidate is validated by checking if the directory structure is correct.
-
-## Mind Validation
-
-Once a mind is discovered (or explicitly provided via --mind), it must be validated. MindValidator checks that the mind directory has the required structure.
+This design is **loosely coupled**. Core MsClaw doesn't know about specific extensions—it just fires hooks and asks extensions to register what they need.
 
 ```bash
-sed -n '1,50p' src/MsClaw/Core/MindValidator.cs
+sed -n '59,139p' src/MsClaw/Core/ExtensionAbstractions.cs
 ```
 
 ```output
-using MsClaw.Models;
-
-namespace MsClaw.Core;
-
-public sealed class MindValidator : IMindValidator
+public static class ExtensionEvents
 {
-    public MindValidationResult Validate(string mindRoot)
-    {
-        var errors = new List<string>();
-        var warnings = new List<string>();
-        var found = new List<string>();
+    public const string SessionCreate = "session:create";
+    public const string SessionResume = "session:resume";
+    public const string SessionEnd = "session:end";
+    public const string MessageReceived = "message:received";
+    public const string MessageSent = "message:sent";
+    public const string AgentBootstrap = "agent:bootstrap";
+    public const string ExtensionLoaded = "extension:loaded";
+}
 
-        if (!Directory.Exists(mindRoot))
+public enum ExtensionTier
+{
+    Core,
+    External
+}
+
+public sealed class LoadedExtensionInfo
+{
+    public required string Id { get; init; }
+    public required string Name { get; init; }
+    public required string Version { get; init; }
+    public required ExtensionTier Tier { get; init; }
+    public bool Started { get; init; }
+    public bool Failed { get; init; }
+}
+
+public sealed class PluginManifest
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("version")]
+    public string Version { get; set; } = "";
+
+    [JsonPropertyName("entryAssembly")]
+    public string EntryAssembly { get; set; } = "";
+
+    [JsonPropertyName("entryType")]
+    public string EntryType { get; set; } = "";
+
+    [JsonPropertyName("dependencies")]
+    public List<PluginDependency> Dependencies { get; set; } = [];
+
+    [JsonPropertyName("config")]
+    public JsonElement? Config { get; set; }
+}
+
+public sealed class PluginDependency
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = "";
+
+    [JsonPropertyName("versionRange")]
+    public string? VersionRange { get; set; }
+
+    [JsonPropertyName("version")]
+    public string? Version { get; set; }
+
+    public string Range => !string.IsNullOrWhiteSpace(VersionRange)
+        ? VersionRange!
+        : string.IsNullOrWhiteSpace(Version) ? "*" : Version!;
+}
+
+public interface IExtensionManager
+{
+    Task InitializeAsync(CancellationToken cancellationToken = default);
+    Task ShutdownAsync(CancellationToken cancellationToken = default);
+    Task ReloadExternalAsync(CancellationToken cancellationToken = default);
+
+    IReadOnlyList<AIFunction> GetTools();
+    IReadOnlyList<LoadedExtensionInfo> GetLoadedExtensions();
+    void MapRoutes(IEndpointRouteBuilder endpointRouteBuilder);
+
+    Task FireHookAsync(string eventName, ExtensionHookContext context, CancellationToken cancellationToken = default);
+    Task<string?> TryExecuteCommandAsync(string input, string? sessionId, CancellationToken cancellationToken = default);
+}
+```
+
+### Extension Events and Lifecycle
+
+MsClaw fires specific events throughout the application lifecycle:
+
+- **session:create** — A new Copilot session was created
+- **session:resume** — An existing session was resumed
+- **session:end** — A session ended
+- **message:received** — A user sent a message
+- **message:sent** — An agent response was sent
+- **agent:bootstrap** — The agent is booting (after all extensions load)
+- **extension:loaded** — All extensions have been loaded
+
+Extensions listen for events by calling **RegisterHook(eventName, handler)**. For example, a logging extension might listen to 'message:received' to track conversations; a memory extension might listen to 'message:sent' to update its working memory.
+
+### Plugin Manifests and Dependencies
+
+Extensions are defined in a **plugin.json** manifest that specifies the extension ID, name, version, the entry assembly and type, optional configuration, and dependencies on other extensions.
+
+**ExtensionTier** distinguishes between:
+- **Core** — Built into MsClaw, always loaded
+- **External** — Loaded from the mind directory, can be reloaded without restarting
+
+This allows a mind to customize its behavior by adding external extensions.
+
+## ExtensionManager: The Orchestrator
+
+The **ExtensionManager** is the component responsible for loading, initializing, and coordinating extensions. It manages the lifecycle and provides the core dispatch mechanisms.
+
+```bash
+sed -n '48,79p' src/MsClaw/Core/ExtensionManager.cs
+```
+
+```output
+    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        await _reloadLock.WaitAsync(cancellationToken);
+        try
         {
-            errors.Add($"Mind root directory does not exist: {mindRoot}");
-            return new MindValidationResult
+            if (_initialized)
             {
-                Errors = errors,
-                Warnings = warnings,
-                Found = found
-            };
+                return;
+            }
+
+            await RegisterCoreExtensionsAsync(cancellationToken);
+            await RegisterExternalExtensionsAsync(cancellationToken);
+
+            await FireHookAsync(
+                ExtensionEvents.ExtensionLoaded,
+                new ExtensionHookContext { EventName = ExtensionEvents.ExtensionLoaded },
+                cancellationToken);
+
+            await StartExtensionsAsync(_loaded, cancellationToken);
+
+            await FireHookAsync(
+                ExtensionEvents.AgentBootstrap,
+                new ExtensionHookContext { EventName = ExtensionEvents.AgentBootstrap },
+                cancellationToken);
+
+            _initialized = true;
         }
-
-        found.Add(mindRoot);
-
-        var soulPath = Path.Combine(mindRoot, "SOUL.md");
-        if (File.Exists(soulPath))
+        finally
         {
-            found.Add(soulPath);
+            _reloadLock.Release();
         }
-        else
-        {
-            errors.Add($"Required file missing: {soulPath}");
-        }
-
-        var workingMemoryPath = Path.Combine(mindRoot, ".working-memory");
-        if (Directory.Exists(workingMemoryPath))
-        {
-            found.Add(workingMemoryPath);
-
-            CheckOptionalFile(workingMemoryPath, "memory.md", warnings, found);
-            CheckOptionalFile(workingMemoryPath, "rules.md", warnings, found);
-            CheckOptionalFile(workingMemoryPath, "log.md", warnings, found);
-        }
-        else
-        {
-            errors.Add($"Required directory missing: {workingMemoryPath}");
-        }
-
-        CheckOptionalDirectory(mindRoot, ".github", "agents", warnings, found);
+    }
 ```
 
-MindValidator is strict about **required** files and directories:
-- **SOUL.md** — The identity file (must exist)
-- **.working-memory/** — The memory directory (must exist)
+### Initialization Sequence
 
-It also checks for optional directories like .github/agents/, domains/, initiatives/, and expertise/. If optional files are missing, it logs warnings instead of errors. The validator tracks three lists: errors (which fail validation), warnings (optional missing parts), and found (what exists).
+The **InitializeAsync** method orchestrates the startup:
 
-## Loading the Mind: IdentityLoader and MindReader
+1. **RegisterCoreExtensionsAsync** — Load built-in extensions (part of MsClaw itself)
+2. **RegisterExternalExtensionsAsync** — Load extensions from the mind directory
+3. **FireHookAsync('extension:loaded')** — Notify extensions they're ready
+4. **StartExtensionsAsync** — Call StartAsync() on all loaded extensions
+5. **FireHookAsync('agent:bootstrap')** — Signal the agent to initialize
 
-Once the mind is validated, MsClaw loads its contents. There are two key components: IdentityLoader (reads SOUL.md) and MindReader (reads agents and memory).
+Notice the **_reloadLock** semaphore—it ensures initialization and reload are atomic. This prevents race conditions when external extensions are reloaded while the app is running.
+
+The separation of 'extension:loaded' and 'agent:bootstrap' events is intentional. Core extensions might need to set up tools before the agent initializes. The 'agent:bootstrap' event signals that the extension system is ready and the agent can safely use all registered tools.
 
 ```bash
-sed -n '1,35p' src/MsClaw/Core/IdentityLoader.cs
+sed -n '183,211p' src/MsClaw/Core/ExtensionManager.cs
+```
+
+```output
+    public async Task FireHookAsync(string eventName, ExtensionHookContext context, CancellationToken cancellationToken = default)
+    {
+        var normalizedEventName = NormalizeHookEventName(eventName);
+        HookRegistration[] handlers;
+        lock (_stateLock)
+        {
+            handlers = _hooks.TryGetValue(normalizedEventName, out var list)
+                ? list.ToArray()
+                : [];
+        }
+
+        foreach (var hook in handlers)
+        {
+            try
+            {
+                await hook.Handler(new ExtensionHookContext
+                {
+                    EventName = normalizedEventName,
+                    SessionId = context.SessionId,
+                    Message = context.Message,
+                    Response = context.Response
+                }, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Hook '{HookEvent}' failed in extension '{ExtensionId}'.", normalizedEventName, hook.ExtensionId);
+            }
+        }
+    }
+```
+
+### Hook System
+
+When an event fires, **FireHookAsync** executes all registered handlers for that event. The implementation:
+
+1. **Normalizes the event name** (case-insensitive and trimmed)
+2. **Locks _stateLock** and retrieves the handlers for that event
+3. **Iterates through handlers** and calls each one
+4. **Catches exceptions** per handler—if one extension's hook fails, others still run
+
+This is **fail-safe by design**. One misbehaving extension can't crash the entire system or block other extensions from running. Errors are logged but don't propagate.
+
+The _stateLock uses lock() statements to ensure thread safety—multiple threads might be firing hooks simultaneously while other threads are registering new tools or commands.
+
+```bash
+sed -n '213,255p' src/MsClaw/Core/ExtensionManager.cs
+```
+
+```output
+    public async Task<string?> TryExecuteCommandAsync(string input, string? sessionId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
+        var trimmed = input.Trim();
+        if (!trimmed.StartsWith("/", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        ParseCommand(trimmed, out var command, out var arguments);
+
+        CommandRegistration? registration;
+        lock (_stateLock)
+        {
+            _commands.TryGetValue(command, out registration);
+        }
+
+        if (registration is null)
+        {
+            return $"Unknown command: {command}";
+        }
+
+        var context = new ExtensionCommandContext
+        {
+            Command = command,
+            Arguments = arguments,
+            RawInput = trimmed,
+            SessionId = sessionId
+        };
+
+        try
+        {
+            return await registration.Handler(context, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Command '{Command}' failed in extension '{ExtensionId}'.", command, registration.ExtensionId);
+            return $"Command failed: {ex.Message}";
+        }
+```
+
+### Command Dispatch
+
+**TryExecuteCommandAsync** handles user input that starts with a slash (e.g., /memory, /reset, /status). The flow:
+
+1. **Validates** the input is non-empty and starts with /
+2. **Parses** the command name and arguments (e.g., '/memory search foo' → command: 'memory', arguments: 'search foo')
+3. **Looks up** the command in the _commands registry
+4. **Executes** the handler if found, or returns an error if unknown
+
+Like hooks, command execution is **fault-isolated**. If a command handler throws, the error is caught, logged, and returned as a string message back to the user. This prevents extensions from crashing the server.
+
+Commands are how extensions provide interactive features to users. For example, a mind might register a /memory command to search or update its working memory, or a /status command to report internal state.
+
+## Mind Reading and Identity Loading
+
+Before the extension system can function, MsClaw must load the mind's identity and understand what agents it contains. Let's look at how minds are structured and loaded.
+
+```bash
+sed -n '1,40p' src/MsClaw/Core/IMindReader.cs
+```
+
+```output
+namespace MsClaw.Core;
+
+public interface IMindReader
+{
+    Task<string> ReadFileAsync(string path, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<string>> ListDirectoryAsync(string path, CancellationToken cancellationToken = default);
+    Task EnsureSyncedAsync(CancellationToken cancellationToken = default);
+}
+```
+
+### IMindReader: Abstracting Mind Access
+
+The **IMindReader** interface abstracts how MsClaw reads the mind directory. This abstraction exists to support future implementations:
+
+- **ReadFileAsync(path)** — Read the contents of a file in the mind
+- **ListDirectoryAsync(path)** — List contents of a directory
+- **EnsureSyncedAsync()** — (Future use) Sync mind state with a remote source
+
+The reader is implemented in **MindReader**, which currently just reads from the local filesystem. But the abstraction allows for future features like:
+- Fetching minds from a remote registry
+- Caching mind data
+- Hot-reloading minds when they change on disk
+
+```bash
+sed -n '1,50p' src/MsClaw/Core/IdentityLoader.cs
 ```
 
 ```output
@@ -336,498 +589,130 @@ public sealed class IdentityLoader : IIdentityLoader
     }
 
     private static string StripFrontmatter(string content)
-```
-
-IdentityLoader is responsible for composing the system message that will be sent to the Copilot Runtime API. It:
-1. Reads SOUL.md (the core identity)
-2. Discovers all *.agent.md files in .github/agents/ (sorted by name for deterministic ordering)
-3. Strips YAML frontmatter from agent files (if present)
-4. Joins them all together with separators, creating a single system prompt
-
-The result is a cohesive system message that includes the mind's identity and all its agents. This is crucial: the system message is what tells the Copilot Runtime who this agent is and how it should behave.
-
-```bash
-sed -n '1,40p' src/MsClaw/Core/MindReader.cs
-```
-
-```output
-using System.Diagnostics;
-using MsClaw.Models;
-using Microsoft.Extensions.Options;
-
-namespace MsClaw.Core;
-
-public sealed class MindReader : IMindReader
-{
-    private readonly string _mindRoot;
-    private readonly bool _autoGitPull;
-
-    public MindReader(IOptions<MsClawOptions> options)
     {
-        _mindRoot = Path.GetFullPath(options.Value.MindRoot);
-        _autoGitPull = options.Value.AutoGitPull;
-    }
-
-    public async Task EnsureSyncedAsync(CancellationToken cancellationToken = default)
-    {
-        if (!_autoGitPull)
+        if (!content.StartsWith("---", StringComparison.Ordinal))
         {
-            return;
+            return content;
         }
 
-        var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = "git",
-                Arguments = $"-C \"{_mindRoot}\" pull --ff-only --quiet",
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-                UseShellExecute = false
-            }
-        };
-
-        process.Start();
-        await process.WaitForExitAsync(cancellationToken);
-        if (process.ExitCode != 0)
-        {
-```
-
-MindReader has two responsibilities: (1) Keep the mind synced by pulling the latest from git (if AutoGitPull is enabled), and (2) Provide access to the mind's working memory. The git pull is a convenience feature — if the mind directory is a git repo, MsClaw can auto-update it before each chat. This is useful when the mind is stored in GitHub and you want the latest version automatically.
-
-## Session Management — SDK-Native
-
-Session tracking is now owned by the GitHub Copilot SDK, not by a custom `SessionManager`. MsClaw creates or resumes SDK sessions by session ID and forwards one message at a time; the SDK stores and compacts conversation history internally when `InfiniteSessions` is enabled.
-
-```bash
-cat src/MsClaw/Core/ICopilotRuntimeClient.cs
-```
-
-```output
-namespace MsClaw.Core;
-
-public interface ICopilotRuntimeClient
-{
-    /// <summary>
-    /// Creates a new SDK session. Returns the session ID.
-    /// </summary>
-    Task<string> CreateSessionAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Sends a single message to an existing session. Returns the assistant's response.
-    /// The SDK maintains conversation history internally.
-    /// </summary>
-    Task<string> SendMessageAsync(
-        string sessionId,
-        string message,
-        CancellationToken cancellationToken = default);
+        var endIndex = content.IndexOf("---", 3, StringComparison.Ordinal);
+        return endIndex > 0
+            ? content[(endIndex + 3)..].TrimStart()
+            : content;
+    }
 }
 ```
 
-At runtime, `CopilotRuntimeClient` keeps an in-memory `ConcurrentDictionary<string, CopilotSession>` to reuse active sessions efficiently. If a session isn't cached, it calls `ResumeSessionAsync`, caches the result, and continues the conversation without reconstructing history in app models.
+### Loading the Agent Identity
 
-## The Copilot Runtime Client
+**IdentityLoader** builds the system prompt for the Copilot agent by combining:
 
-This is where the runtime bridge lives. `CopilotRuntimeClient` creates SDK sessions with the mind identity as system message, then sends one prompt per request against a session ID.
+1. **SOUL.md** — The mind's core identity and personality
+2. **Agent files** — Individual agent definitions from 
+
+The loader reads SOUL.md first, then appends each agent file (stripping their YAML frontmatter). This creates a single system prompt that defines both the agent's personality and the specific agent behaviors it should support.
+
+This is how a mind can define multiple agent personalities—each one is an agent file that gets concatenated into the final system prompt.
+
+## Putting It All Together: The Request Flow
+
+Now let's trace what happens when a user sends a message to the Copilot agent.
 
 ```bash
-cat src/MsClaw/Core/CopilotRuntimeClient.cs
+sed -n '70,110p' src/MsClaw/Core/CopilotRuntimeClient.cs | head -30
 ```
 
 ```output
-using GitHub.Copilot.SDK;
-using MsClaw.Models;
-using Microsoft.Extensions.Options;
-using System.Collections.Concurrent;
-
-namespace MsClaw.Core;
-
-public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
-{
-    private readonly CopilotClient _client;
-    private readonly MsClawOptions _options;
-    private readonly IIdentityLoader _identityLoader;
-    private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
-
-    public CopilotRuntimeClient(
-        CopilotClient client,
-        IOptions<MsClawOptions> options,
-        IIdentityLoader identityLoader)
-    {
-        _client = client;
-        _options = options.Value;
-        _identityLoader = identityLoader;
-    }
-
-    public async Task<string> CreateSessionAsync(CancellationToken cancellationToken = default)
-    {
-        var mindRoot = Path.GetFullPath(_options.MindRoot);
-        var systemMessage = await _identityLoader.LoadSystemMessageAsync(mindRoot, cancellationToken);
-
-        var bootstrapPath = Path.Combine(mindRoot, "bootstrap.md");
-        if (File.Exists(bootstrapPath))
-        {
-            var bootstrapInstructions = await File.ReadAllTextAsync(bootstrapPath, cancellationToken);
-            systemMessage = bootstrapInstructions + "\n\n---\n\n" + systemMessage;
-        }
-
-        var session = await _client.CreateSessionAsync(new SessionConfig
-        {
-            Model = _options.Model,
-            InfiniteSessions = new InfiniteSessionConfig { Enabled = true },
-            OnPermissionRequest = PermissionHandler.ApproveAll,
-            SystemMessage = new SystemMessageConfig
-            {
-                Mode = SystemMessageMode.Replace,
-                Content = systemMessage
-            }
-        }, cancellationToken);
-
-        _sessions[session.SessionId] = session;
-        return session.SessionId;
-    }
-
-    public async Task<string> SendMessageAsync(
-        string sessionId,
-        string message,
-        CancellationToken cancellationToken = default)
     {
         var session = await GetOrResumeSessionAsync(sessionId, cancellationToken);
+        await _extensionManager.FireHookAsync(
+            ExtensionEvents.MessageReceived,
+            new ExtensionHookContext
+            {
+                EventName = ExtensionEvents.MessageReceived,
+                SessionId = sessionId,
+                Message = message
+            },
+            cancellationToken);
 
         var response = await session.SendAndWaitAsync(
             new MessageOptions { Prompt = message },
             timeout: TimeSpan.FromSeconds(120),
             cancellationToken: cancellationToken);
 
-        return response?.Data?.Content
+        var responseText = response?.Data?.Content
             ?? throw new InvalidOperationException("No assistant response received from Copilot session.");
-    }
 
-    private async Task<CopilotSession> GetOrResumeSessionAsync(string sessionId, CancellationToken cancellationToken)
-    {
-        if (_sessions.TryGetValue(sessionId, out var session))
-        {
-            return session;
-        }
-
-        var resumedSession = await _client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll
-        }, cancellationToken);
-
-        return _sessions.GetOrAdd(sessionId, resumedSession);
-    }
-}
-```
-
-Key behavior in the new implementation:
-1. **Singleton client lifecycle** — `CopilotClient` is injected once and reused across requests.
-2. **Explicit session lifecycle** — `CreateSessionAsync` sets model/system message and enables `InfiniteSessions`.
-3. **Message routing by session ID** — `SendMessageAsync` sends a single prompt to a resumed or cached SDK session.
-4. **In-memory session cache** — `_sessions` avoids repeated resume calls for active sessions.
-
-The identity injection point is unchanged (SOUL + agent files, optionally prefixed by bootstrap.md), but session ownership moved fully into the SDK.
-
-## Mind Scaffolding
-
-If the user runs with --new-mind, MsClaw needs to create a mind from templates. MindScaffold handles this. It extracts embedded template files and writes them to the new mind directory.
-
-```bash
-sed -n '1,40p' src/MsClaw/Core/MindScaffold.cs
-```
-
-```output
-namespace MsClaw.Core;
-
-public sealed class MindScaffold : IMindScaffold
-{
-    public void Scaffold(string mindRoot)
-    {
-        if (Directory.Exists(mindRoot) && Directory.EnumerateFileSystemEntries(mindRoot).Any())
-        {
-            throw new InvalidOperationException($"Cannot scaffold into non-empty directory: {mindRoot}");
-        }
-
-        Directory.CreateDirectory(mindRoot);
-
-        File.WriteAllText(Path.Combine(mindRoot, "SOUL.md"), EmbeddedResources.ReadTemplate("SOUL.md"));
-        File.WriteAllText(Path.Combine(mindRoot, "bootstrap.md"), EmbeddedResources.ReadTemplate("bootstrap.md"));
-
-        var workingMemoryPath = Path.Combine(mindRoot, ".working-memory");
-        Directory.CreateDirectory(workingMemoryPath);
-        File.WriteAllText(Path.Combine(workingMemoryPath, "memory.md"), "# AI Notes — Memory\n");
-        File.WriteAllText(Path.Combine(workingMemoryPath, "rules.md"), "# AI Notes — Rules\n");
-        File.WriteAllText(Path.Combine(workingMemoryPath, "log.md"), "# AI Notes — Log\n");
-
-        Directory.CreateDirectory(Path.Combine(mindRoot, ".github", "agents"));
-        Directory.CreateDirectory(Path.Combine(mindRoot, ".github", "skills"));
-        Directory.CreateDirectory(Path.Combine(mindRoot, "domains"));
-        Directory.CreateDirectory(Path.Combine(mindRoot, "initiatives"));
-        Directory.CreateDirectory(Path.Combine(mindRoot, "expertise"));
-        Directory.CreateDirectory(Path.Combine(mindRoot, "inbox"));
-        Directory.CreateDirectory(Path.Combine(mindRoot, "Archive"));
-    }
-}
-```
-
-MindScaffold creates a complete mind directory structure. It:
-1. Checks that the target directory is empty (or doesn't exist yet)
-2. Creates the directory
-3. Writes SOUL.md and bootstrap.md from embedded templates
-4. Creates .working-memory/ with memory.md, rules.md, and log.md
-5. Creates all the organizational directories: .github/agents, .github/skills, domains, initiatives, expertise, inbox, Archive
-
-The embedded templates come from EmbeddedResources, which reads files compiled into the binary. This means users can run --new-mind without needing a separate template directory — everything is self-contained.
-
-## Configuration Persistence
-
-MsClaw persists its configuration between runs so users don't have to specify --mind every time. ConfigPersistence handles this.
-
-```bash
-cat src/MsClaw/Core/ConfigPersistence.cs
-```
-
-```output
-using System.Text.Json;
-using MsClaw.Models;
-
-namespace MsClaw.Core;
-
-public sealed class ConfigPersistence : IConfigPersistence
-{
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
-
-    private readonly string _configPath;
-
-    public ConfigPersistence()
-        : this(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            ".msclaw",
-            "config.json"))
-    {
-    }
-
-    public ConfigPersistence(string configPath)
-    {
-        _configPath = configPath;
-    }
-
-    public MsClawConfig? Load()
-    {
-        if (!File.Exists(_configPath))
-        {
-            return null;
-        }
-
-        try
-        {
-            var json = File.ReadAllText(_configPath);
-            return JsonSerializer.Deserialize<MsClawConfig>(json, JsonOptions);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    public void Save(MsClawConfig config)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-
-        var directoryPath = Path.GetDirectoryName(_configPath)
-            ?? throw new InvalidOperationException($"Could not resolve config directory for path: {_configPath}");
-
-        Directory.CreateDirectory(directoryPath);
-
-        config.LastUsed = DateTime.UtcNow;
-        var json = JsonSerializer.Serialize(config, JsonOptions);
-        File.WriteAllText(_configPath, json);
-    }
-
-    public void Clear()
-    {
-        if (File.Exists(_configPath))
-        {
-            File.Delete(_configPath);
-        }
-    }
-}
-```
-
-ConfigPersistence stores `MsClawConfig` at `~/.msclaw/config.json` with `MindRoot` and `LastUsed`. `Load()` now fails open for corrupted JSON by catching `JsonException` and returning `null`, so startup can continue with discovery instead of crashing. `--reset-config` still clears the file and exits.
-
-## Data Models
-
-Let's look at the key data structures that flow through the system.
-
-```bash
-cat src/MsClaw/Models/ChatRequest.cs && echo && cat src/MsClaw/Models/ChatResponse.cs
-```
-
-```output
-namespace MsClaw.Models;
-
-public sealed class ChatRequest
-{
-    public string Message { get; set; } = string.Empty;
-    public string? SessionId { get; set; }
-}
-
-namespace MsClaw.Models;
-
-public sealed class ChatResponse
-{
-    public required string Response { get; init; }
-    public required string SessionId { get; init; }
-}
-```
-
-The chat payload models are minimal:
-- **ChatRequest** — Incoming HTTP request with required `Message` and optional `SessionId` (for continuing a prior SDK session).
-- **ChatResponse** — HTTP response containing `Response` and `SessionId`.
-
-MsClaw stays a thin HTTP adapter: clients provide a prompt (and optionally a session ID), and the SDK handles the conversation state.
-
-## Bootstrap Orchestration
-
-When MsClaw starts, the BootstrapOrchestrator coordinates all the setup steps. Let's see how it orchestrates the boot sequence:
-
-```bash
-sed -n '1,80p' src/MsClaw/Core/BootstrapOrchestrator.cs
-```
-
-```output
-using MsClaw.Models;
-
-namespace MsClaw.Core;
-
-public sealed class BootstrapOrchestrator : IBootstrapOrchestrator
-{
-    private const string Usage = "Usage: msclaw [--reset-config] [--mind <path> | --new-mind <path>]";
-
-    private readonly IMindValidator _mindValidator;
-    private readonly IMindDiscovery _mindDiscovery;
-    private readonly IMindScaffold _mindScaffold;
-    private readonly IConfigPersistence _configPersistence;
-
-    public BootstrapOrchestrator(
-        IMindValidator mindValidator,
-        IMindDiscovery mindDiscovery,
-        IMindScaffold mindScaffold,
-        IConfigPersistence configPersistence)
-    {
-        _mindValidator = mindValidator;
-        _mindDiscovery = mindDiscovery;
-        _mindScaffold = mindScaffold;
-        _configPersistence = configPersistence;
-    }
-
-    public BootstrapResult? Run(string[] args)
-    {
-        if (args.Contains("--reset-config", StringComparer.Ordinal))
-        {
-            _configPersistence.Clear();
-            Console.Out.WriteLine("Config cleared.");
-            return null;
-        }
-
-        string? explicitMindPath = null;
-        string? newMindPath = null;
-
-        for (var i = 0; i < args.Length; i++)
-        {
-            switch (args[i])
+        await _extensionManager.FireHookAsync(
+            ExtensionEvents.MessageSent,
+            new ExtensionHookContext
             {
-                case "--mind":
-                    explicitMindPath = ReadPathValue(args, ref i, "--mind", explicitMindPath);
-                    break;
-                case "--new-mind":
-                    newMindPath = ReadPathValue(args, ref i, "--new-mind", newMindPath);
-                    break;
-                default:
-                    // Skip unknown args — they may be ASP.NET Core host flags (--urls, --environment, etc.)
-                    break;
-            }
-        }
-
-        if (explicitMindPath is not null && newMindPath is not null)
-        {
-            ThrowUsage("--mind and --new-mind cannot be used together.");
-        }
-
-        if (newMindPath is not null)
-        {
-            var resolvedPath = Path.GetFullPath(newMindPath);
-            _mindScaffold.Scaffold(resolvedPath);
-            ValidateOrThrow(resolvedPath);
-            Persist(resolvedPath);
-
-            return new BootstrapResult
-            {
-                MindRoot = resolvedPath,
-                IsNewMind = true,
-                HasBootstrapMarker = true
-            };
-        }
-
-        if (explicitMindPath is not null)
-        {
-            var resolvedPath = Path.GetFullPath(explicitMindPath);
-            ValidateOrThrow(resolvedPath);
-            Persist(resolvedPath);
-
-            return new BootstrapResult
+                EventName = ExtensionEvents.MessageSent,
+                SessionId = sessionId,
+                Message = message,
+                Response = responseText
+            },
+            cancellationToken);
 ```
 
-BootstrapOrchestrator is the command-line entry point coordinator. It:
-1. **Parses arguments** — Recognizes --reset-config, --mind, and --new-mind
-2. **Enforces constraints** — Ensures --mind and --new-mind are never used together
-3. **Handles --reset-config** — Clears the saved config and exits
-4. **Scaffolds if needed** — If --new-mind is given, creates a new mind directory
-5. **Validates** — Calls MindValidator to ensure the mind is valid
-6. **Persists** — Saves the mind path to the config file
-7. **Returns a BootstrapResult** — Contains the resolved mind path and metadata
+### Request Handling in CopilotRuntimeClient
 
-This ensures that by the time the HTTP server starts, the mind is valid, the path is known, and the config is saved.
+When a user sends a message through the Copilot Runtime:
 
-## The Complete Request Flow
+1. **Fire 'message:received' hook** — Extensions are notified that a message arrived. A logging extension might record it; a memory extension might search its context.
+2. **Send message to Copilot SDK** — The SDK session forwards the prompt to the LLM
+3. **Wait for response** — The session waits up to 120 seconds for a response
+4. **Fire 'message:sent' hook** — Extensions are notified of both the original message and the response. A memory extension might now update its working memory based on the exchange.
+5. **Return response** — The response is sent back to the Copilot client
 
-Now let's trace what happens when a user sends a chat message:
+This design makes it easy for extensions to observe and react to conversations without modifying core MsClaw code. A new memory extension could be added without touching CopilotRuntimeClient—it just registers hooks for these two events.
 
-1. HTTP POST to `/chat` with `{ message: "Hello", sessionId?: "..." }`
-2. If `sessionId` is missing, `ICopilotRuntimeClient.CreateSessionAsync()` creates an SDK session and returns its ID
-3. `ICopilotRuntimeClient.SendMessageAsync(sessionId, message)` runs:
-   - Reuse cached `CopilotSession` or call `ResumeSessionAsync(sessionId)`
-   - Send one prompt via `SendAndWaitAsync`
-   - Return assistant content
-4. API returns `{ response: "...", sessionId: "..." }`
+## Extending MsClaw: Writing an Extension
 
-System message composition (SOUL + agents + optional bootstrap.md) happens when sessions are created; subsequent messages continue that session in the SDK.
+Here's what it looks like to write a simple extension. Extensions are .NET assemblies that implement IExtension and inherit from ExtensionBase.
+
+A typical extension:
+- Inherits from ExtensionBase
+- Overrides Register to subscribe to hooks and register tools/commands
+- Implements hook handlers that react to lifecycle events
+
+Extensions can be arbitrarily complex: they can register AI tools, expose HTTP endpoints, manage state, call external APIs, all through the IMsClawPluginApi interface. The plugin.json manifest describes the extension to MsClaw, specifying its entry type, dependencies, and optional configuration.
 
 ## Architecture Summary
 
-MsClaw is an elegant solution to a specific problem: **How do you give a persistent identity to an AI agent in a stateless system?**
+MsClaw is built on these principles:
 
-**The answer:**
-- Store the identity (SOUL.md + agent files) on disk
-- Inject it as a system message when creating SDK sessions
-- Route chat turns over lightweight HTTP endpoints
-- Let the SDK persist and compact conversation history
+### 1. **Bootstrap First, Serve Second**
+The app validates and loads the mind before starting the HTTP server. CLI argument parsing and mind discovery happen synchronously, upfront, in BootstrapOrchestrator.
 
-**Key design choices:**
-- **Minimal HTTP API** — Just three endpoints: /health, /session/new, /chat
-- **Lightweight persistence** — Config is stored in JSON; chat session state is SDK-managed
-- **Loose coupling** — Each component has a single responsibility and a clear interface
-- **Convention over configuration** — Mind directories follow a standard structure; paths are discovered automatically
-- **Identity-at-session-creation** — System message is loaded when creating a session
-- **SDK-native session management** — Session IDs flow through HTTP, while the SDK owns turn history
+### 2. **Extensions Are First-Class**
+Extensions aren't an afterthought—they're baked into the core architecture. The extension system is initialized immediately after the mind loads and before Copilot agents start serving requests. This allows extensions to influence agent behavior from the very beginning.
 
-This design makes MsClaw:
-- Easy to run (just a single binary + a mind directory)
-- Easy to understand (no complex state machines or databases)
-- Easy to extend (add agents, skills, and domains just by writing markdown files)
+### 3. **Hooks and Events, Not Direct Coupling**
+Core MsClaw doesn't import or depend on specific extensions. Instead, it fires well-defined events (session:create, message:received, etc.). Extensions register hooks for these events. This is **loose coupling**—extensions can be swapped in and out without rebuilding MsClaw.
 
-The entire system is orchestrated through dependency injection and a thin HTTP layer — a classical microservice architecture, but for AI agents.
+### 4. **Fail-Safe Extensions**
+If an extension hook throws, it's caught and logged, but other extensions continue running. If an extension command fails, the error is returned to the user but the server stays up. This prevents a buggy extension from taking down the whole system.
+
+### 5. **Runtime Reloadability**
+External extensions can be reloaded via the ReloadExternalAsync() method. Core extensions (built into MsClaw) stay fixed, but a mind can update its external extensions without restarting the entire app.
+
+This architecture makes it easy to build minds with custom behavior—just write extensions and drop them into the mind directory.
+
+## File Structure
+
+Here's the key files in the MsClaw codebase:
+
+- **Program.cs** — Bootstrap, service registration, HTTP endpoints (/health, /session/new, /command)
+- **Core/BootstrapOrchestrator.cs** — CLI parsing, mind discovery, mind scaffolding, validation
+- **Core/MindValidator.cs** — Ensures a mind directory has required files (SOUL.md, etc.)
+- **Core/MindDiscovery.cs** — Auto-discovers minds in standard locations
+- **Core/MindScaffold.cs** — Scaffolds new minds from embedded templates
+- **Core/IdentityLoader.cs** — Loads SOUL.md and agent definitions to build the system prompt
+- **Core/MindReader.cs** — Reads files and directories from the mind
+- **Core/CopilotRuntimeClient.cs** — Implements the Copilot Runtime protocol, fires hooks around messages
+- **Core/ExtensionManager.cs** — Loads extensions, registers tools/hooks/commands, fires events
+- **Core/ExtensionAbstractions.cs** — IExtension, IMsClawPluginApi, extension data models, event constants
+- **Models/** — Data structures (MsClawOptions, ChatRequest, ChatResponse, etc.)
+
+The code is organized by responsibility: bootstrap logic is separate from runtime logic is separate from extension management. This makes the codebase easy to navigate and modify.

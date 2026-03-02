@@ -25,6 +25,9 @@ public sealed class TempMindFixture : IDisposable
         Directory.CreateDirectory(Path.Combine(MindRoot, "expertise"));
         Directory.CreateDirectory(Path.Combine(MindRoot, "inbox"));
         Directory.CreateDirectory(Path.Combine(MindRoot, "Archive"));
+        Directory.CreateDirectory(Path.Combine(MindRoot, "extensions"));
+        File.WriteAllText(Path.Combine(MindRoot, "extensions.lock.json"), "{\n  \"extensions\": []\n}\n");
+        File.WriteAllText(Path.Combine(MindRoot, ".gitignore"), "extensions/\n");
 
         Directory.CreateDirectory(Path.Combine(MindRoot, ".github", "agents"));
         Directory.CreateDirectory(Path.Combine(MindRoot, ".github", "skills"));
