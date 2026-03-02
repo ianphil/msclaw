@@ -9,13 +9,7 @@ dotnet tool install -g MsClaw
 msclaw --new-mind /path/to/my-mind
 ```
 
-Or from source:
-
-```bash
-git clone https://github.com/ianphil/msclaw.git
-cd msclaw && dotnet build
-dotnet run --project src/MsClaw -- --mind /path/to/your/mind
-```
+👉 **[Full Getting Started Guide](getting-started.md)** — scaffold a mind, bootstrap a personality, have your first conversation.
 
 ## Guides
 
