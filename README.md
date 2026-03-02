@@ -22,6 +22,20 @@ dotnet run --project src/MsClaw -- --new-mind /path/to/new/mind
 
 The server starts on `http://localhost:5050`.
 
+### TUI Chat Client
+
+Once the server is running, use the bundled chat scripts to interact from your terminal:
+
+```bash
+# PowerShell (cross-platform)
+pwsh scripts/chat.ps1
+
+# Bash (Linux/macOS — requires curl and jq)
+bash scripts/chat.sh
+```
+
+Type a message and press Enter. Type `quit` to exit. Session continuity is maintained automatically via `sessionId`.
+
 ## CLI Arguments
 
 | Argument | Description |
