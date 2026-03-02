@@ -47,16 +47,16 @@ using MsClaw.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Bootstrap: resolve mind root before starting the server
+var validator = new MindValidator();
+var configPersistence = new ConfigPersistence();
+var discovery = new MindDiscovery(configPersistence, validator);
+var scaffold = new MindScaffold();
+var orchestrator = new BootstrapOrchestrator(validator, discovery, scaffold, configPersistence);
+
 string resolvedMindRoot;
 try
 {
-    // Bootstrap: resolve mind root before starting the server
-    var validator = new MindValidator();
-    var configPersistence = new ConfigPersistence();
-    var discovery = new MindDiscovery(configPersistence, validator);
-    var scaffold = new MindScaffold();
-    var orchestrator = new BootstrapOrchestrator(validator, discovery, scaffold, configPersistence);
-
     var bootstrapResult = orchestrator.Run(args);
     if (bootstrapResult is null)
     {
@@ -78,10 +78,10 @@ builder.Services.Configure<MsClawOptions>(opts =>
     opts.MindRoot = resolvedMindRoot;
 });
 
-builder.Services.AddSingleton<IMindValidator, MindValidator>();
-builder.Services.AddSingleton<IConfigPersistence, ConfigPersistence>();
-builder.Services.AddSingleton<IMindDiscovery, MindDiscovery>();
-builder.Services.AddSingleton<IMindScaffold, MindScaffold>();
+// Register the same instances used during bootstrap — avoids duplicate instantiation
+builder.Services.AddSingleton<IMindValidator>(validator);
+builder.Services.AddSingleton<IConfigPersistence>(configPersistence);
+builder.Services.AddSingleton<IMindDiscovery>(discovery);
 ```
 
 The bootstrap phase happens **before** the HTTP server starts. MsClaw uses a BootstrapOrchestrator to:
@@ -96,7 +96,8 @@ sed -n '40,96p' src/MsClaw/Program.cs
 ```
 
 ```output
-builder.Services.AddSingleton<IMindScaffold, MindScaffold>();
+builder.Services.AddSingleton<IMindDiscovery>(discovery);
+builder.Services.AddSingleton<IMindScaffold>(scaffold);
 builder.Services.AddSingleton<IIdentityLoader, IdentityLoader>();
 
 builder.Services.AddSingleton<ISessionManager, SessionManager>();
@@ -152,7 +153,6 @@ app.MapPost("/chat", async (
     });
 });
 
-app.Run();
 ```
 
 After bootstrap, the app registers all dependencies as singletons and exposes three HTTP endpoints:
@@ -221,18 +221,17 @@ public sealed class MindDiscovery : IMindDiscovery
             return msclawMind;
         }
 
-        var missMoneypenny = Path.Combine(home, "src", "miss-moneypenny");
+        return null;
 ```
 
 Discovery follows a priority order:
 1. **Cached config** — Check if a previous run saved a mind path (in ConfigPersistence).
 2. **Current directory** — Check if the current working directory is a valid mind.
 3. **~/.msclaw/mind** — Convention path for the default mind.
-4. **~/src/miss-moneypenny** — Another convention path (legacy or specific use case).
 
-Each candidate is validated by calling , which uses the MindValidator to check if the directory structure is correct.
+Each candidate is validated by calling `IsValidCandidate()`, which uses the MindValidator to check if the directory structure is correct.
 
-Discovery follows a priority order: (1) Cached config from previous run, (2) Current directory, (3) Convention paths like ~/.msclaw/mind, (4) Legacy paths like ~/src/miss-moneypenny. Each candidate is validated by checking if the directory structure is correct.
+Discovery follows a priority order: (1) Cached config from previous run, (2) Current directory, (3) Convention path ~/.msclaw/mind. Each candidate is validated by checking if the directory structure is correct.
 
 ## Mind Validation
 
@@ -255,14 +254,18 @@ public sealed class MindValidator : IMindValidator
         var warnings = new List<string>();
         var found = new List<string>();
 
-        if (Directory.Exists(mindRoot))
-        {
-            found.Add(mindRoot);
-        }
-        else
+        if (!Directory.Exists(mindRoot))
         {
             errors.Add($"Mind root directory does not exist: {mindRoot}");
+            return new MindValidationResult
+            {
+                Errors = errors,
+                Warnings = warnings,
+                Found = found
+            };
         }
+
+        found.Add(mindRoot);
 
         var soulPath = Path.Combine(mindRoot, "SOUL.md");
         if (File.Exists(soulPath))
@@ -289,10 +292,6 @@ public sealed class MindValidator : IMindValidator
         }
 
         CheckOptionalDirectory(mindRoot, ".github", "agents", warnings, found);
-        CheckOptionalDirectory(mindRoot, ".github", "skills", warnings, found);
-        CheckOptionalDirectory(mindRoot, "domains", warnings, found);
-        CheckOptionalDirectory(mindRoot, "initiatives", warnings, found);
-        CheckOptionalDirectory(mindRoot, "expertise", warnings, found);
 ```
 
 MindValidator is strict about **required** files and directories:
@@ -818,7 +817,7 @@ public sealed class BootstrapOrchestrator : IBootstrapOrchestrator
                     newMindPath = ReadPathValue(args, ref i, "--new-mind", newMindPath);
                     break;
                 default:
-                    ThrowUsage($"Unknown argument: {args[i]}");
+                    // Skip unknown args — they may be ASP.NET Core host flags (--urls, --environment, etc.)
                     break;
             }
         }
