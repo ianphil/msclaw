@@ -1,4 +1,4 @@
-# Getting Started with MsClaw
+# Getting Started with MS-Claw
 
 MsClaw is a runtime that gives your AI agent a persistent identity — a **mind**. This guide walks you through setting up your first mind and having your first conversation.
 

@@ -1,4 +1,4 @@
-# MsClaw — Code Walkthrough
+# MS-Claw — Code Walkthrough
 
 *2026-03-02T04:32:39Z by Showboat 0.6.1*
 <!-- showboat-id: 826cc533-ce4a-4d76-9415-d9964866e30a -->

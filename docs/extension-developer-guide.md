@@ -1,4 +1,4 @@
-# MsClaw Extension Developer Guide
+# MS-Claw Extension Developer Guide
 
 A hands-on guide for developers building extensions for MsClaw agents.
 
