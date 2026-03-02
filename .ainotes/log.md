@@ -15,3 +15,8 @@
 - architecture: MindValidator early-returns when root directory is missing — prevents cascading errors for SOUL.md/.working-memory
 - architecture: Program.cs reuses bootstrap-time instances as DI singletons instead of creating duplicates
 - tooling: `showboat verify` detects stale code blocks in walkthrough docs — used it to find and fix 5 blocks after the code review merge
+- refactor: Replaced custom session management (SessionManager, ISessionManager, SessionState, SessionMessage) with Copilot SDK built-in sessions (CreateSessionAsync, ResumeSessionAsync, SendAndWaitAsync, InfiniteSessionConfig)
+- architecture: CopilotClient must be registered as singleton — spawning per-request is like starting a new database per query
+- architecture: SDK's InfiniteSessionConfig auto-compacts at 80% context utilization — eliminates manual context window management
+- anti-pattern: BuildPrompt pattern (stuffing full conversation as text blob) replaced — SDK maintains proper user/assistant turn history natively
+- architecture: System message (SOUL.md + agents) is set once at session creation, not re-sent per message

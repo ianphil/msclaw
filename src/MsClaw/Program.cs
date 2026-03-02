@@ -1,5 +1,6 @@
 using MsClaw.Core;
 using MsClaw.Models;
+using GitHub.Copilot.SDK;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,7 +42,18 @@ builder.Services.AddSingleton<IMindDiscovery>(discovery);
 builder.Services.AddSingleton<IMindScaffold>(scaffold);
 builder.Services.AddSingleton<IIdentityLoader, IdentityLoader>();
 
-builder.Services.AddSingleton<ISessionManager, SessionManager>();
+// Register CopilotClient as singleton
+builder.Services.AddSingleton<CopilotClient>(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<MsClawOptions>>().Value;
+    return new CopilotClient(new CopilotClientOptions
+    {
+        Cwd = Path.GetFullPath(options.MindRoot),
+        AutoStart = true,
+        UseStdio = true
+    });
+});
+
 builder.Services.AddSingleton<IMindReader, MindReader>();
 builder.Services.AddSingleton<ICopilotRuntimeClient, CopilotRuntimeClient>();
 
@@ -49,15 +61,14 @@ var app = builder.Build();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 
-app.MapPost("/session/new", async (ISessionManager sessionManager, CancellationToken cancellationToken) =>
+app.MapPost("/session/new", async (ICopilotRuntimeClient copilotClient, CancellationToken cancellationToken) =>
 {
-    var session = await sessionManager.CreateNewAsync(cancellationToken);
-    return Results.Ok(new { sessionId = session.SessionId });
+    var sessionId = await copilotClient.CreateSessionAsync(cancellationToken);
+    return Results.Ok(new { sessionId });
 });
 
 app.MapPost("/chat", async (
     ChatRequest request,
-    ISessionManager sessionManager,
     ICopilotRuntimeClient copilotClient,
     CancellationToken cancellationToken) =>
 {
@@ -66,31 +77,19 @@ app.MapPost("/chat", async (
         return Results.BadRequest(new { error = "message is required" });
     }
 
-    var session = await sessionManager.GetOrCreateAsync(cancellationToken);
+    var sessionId = request.SessionId;
 
-    session.Messages.Add(new SessionMessage
+    if (string.IsNullOrWhiteSpace(sessionId))
     {
-        Role = "user",
-        Content = request.Message,
-        Timestamp = DateTime.UtcNow
-    });
+        sessionId = await copilotClient.CreateSessionAsync(cancellationToken);
+    }
 
-    var assistantResponse = await copilotClient.GetAssistantResponseAsync(session.Messages, cancellationToken);
-
-    session.Messages.Add(new SessionMessage
-    {
-        Role = "assistant",
-        Content = assistantResponse,
-        Timestamp = DateTime.UtcNow
-    });
-
-    session.UpdatedAt = DateTime.UtcNow;
-    await sessionManager.SaveAsync(session, cancellationToken);
+    var response = await copilotClient.SendMessageAsync(sessionId, request.Message, cancellationToken);
 
     return Results.Ok(new ChatResponse
     {
-        Response = assistantResponse,
-        SessionId = session.SessionId
+        Response = response,
+        SessionId = sessionId
     });
 });
 

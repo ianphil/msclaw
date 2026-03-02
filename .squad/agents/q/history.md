@@ -135,3 +135,24 @@
 - MindValidator returns structured result (errors/warnings/found), not bool
 
 **Artifact:** `.squad/decisions/inbox/q-bootstrap-spec-plan.md`
+
+---
+
+### 2026-03-02 — Session Management Refactor Design
+
+**Context:** Ian discovered MsClaw manually manages sessions (SessionManager writes JSON, BuildPrompt stuffs history as text) when the Copilot SDK has built-in session management (CreateSessionAsync, ResumeSessionAsync, InfiniteSessionConfig).
+
+**Architecture decisions:**
+1. **CopilotClient → singleton** — Current code creates a new CopilotClient (spawning CLI process) per HTTP request. Refactor to one long-lived instance registered in DI.
+2. **SDK owns session state** — Replace custom JSON persistence (SessionManager, SessionState, SessionMessage) with SDK's CreateSessionAsync/ResumeSessionAsync. Delete 4 files.
+3. **BuildPrompt → deleted** — SDK maintains proper conversation turns internally. Each SendAsync adds one user message; model sees real user/assistant turns instead of a concatenated text blob.
+4. **InfiniteSessions enabled** — Was explicitly disabled (`Enabled = false`). Enable for automatic context compaction and workspace persistence. SDK defaults (80%/95% thresholds) are fine.
+5. **ICopilotRuntimeClient redesigned** — New contract: `CreateSessionAsync() → sessionId` and `SendMessageAsync(sessionId, message) → response`. Callers send one message, not full history.
+6. **ChatRequest gets optional SessionId** — Clients can continue sessions by passing the ID. No sessionId = create new session on demand.
+7. **SendAndWaitAsync replaces manual event loop** — Current code uses TaskCompletionSource + On() subscription. SDK's SendAndWaitAsync does this already.
+
+**File impact:** Delete 4 (SessionManager, ISessionManager, SessionState, SessionMessage). Rewrite 2 (CopilotRuntimeClient, ICopilotRuntimeClient). Modify 3 (ChatRequest, MsClawOptions, Program.cs).
+
+**Key risk:** System message loaded at session creation, not per-message. SOUL.md changes mid-session won't apply until new session. Acceptable for MVP.
+
+**Artifact:** `.squad/decisions/inbox/q-session-refactor-design.md`

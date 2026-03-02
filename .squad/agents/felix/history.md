@@ -42,6 +42,8 @@ See `.aidocs/bootstrap-plan.md` for full decomposition.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
-- **Bootstrap contract baseline established (T2)** — Added six core interfaces (`IMindValidator`, `IMindDiscovery`, `IMindScaffold`, `IConfigPersistence`, `IBootstrapOrchestrator`, `IIdentityLoader`) and three models (`MindValidationResult`, `MsClawConfig`, `BootstrapResult`) with file-scoped namespaces (`MsClaw.Core`, `MsClaw.Models`) as the canonical signatures for Phase 1 bootstrap dependencies.
+- **Session management refactor (2026-03-02)** — Implemented SDK-native session management: deleted SessionManager, ISessionManager, SessionState, SessionMessage; rewrote ICopilotRuntimeClient and CopilotRuntimeClient with CreateSessionAsync/SendMessageAsync pattern; modified ChatRequest, MsClawOptions, Program.cs endpoints. Registered CopilotClient singleton with InfiniteSessions enabled. Build: 0 errors, 0 warnings.
 
 - **Core bootstrap service behavior landed (T3/T4/T6/T7)** — Implemented synchronous `MindValidator` structure checks with error/warning/found classification, user-global config persistence at `~/.msclaw/config.json`, embedded-template scaffold creation for new minds, and identity composition (`SOUL.md` + `.github/agents/*.agent.md`) with YAML frontmatter stripping.
+
+- **Session management refactor completed (2026-03-02)** — Removed manual session persistence (`SessionManager`, `SessionState`, `SessionMessage`) and replaced with SDK-native session handling. `CopilotClient` is now a singleton registered in DI. `CopilotRuntimeClient` uses `CreateSessionAsync` / `ResumeSessionAsync` / `SendAndWaitAsync` pattern. Enabled `InfiniteSessions` for automatic context compaction. The SDK owns conversation state; HTTP layer only routes session IDs. Deleted 4 files, rewrote 2 interfaces/implementations, modified 3 models. Build succeeds with zero warnings.
