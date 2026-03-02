@@ -28,3 +28,6 @@
 - convention: Extension manifests use `plugin.json` with id, name, version, entryPoint, and optional dependencies map
 - convention: Mind scaffolding now creates `extensions/` dir, `extensions.lock.json`, and adds extension paths to mind-local `.gitignore`
 - convention: MsClawConfig.DisabledExtensions holds a list of extension IDs to skip during loading
+- documentation: Created comprehensive extension-developer-guide.md — hands-on walkthrough for extension developers covering full IExtension lifecycle, tool/command/hook registration, configuration, testing, and common patterns; included ASP.NET limitation (HTTP routes frozen after startup) with documented workaround
+- docs: Removed duplicate "Extension System: A New Architecture" section from msclaw-walkthrough.md (merge artifact from Showboat generation)
+- phase2-review: Marked item 6 (HTTP route reload limitation) as complete with documentation link

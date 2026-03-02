@@ -163,14 +163,6 @@ The extension system is the major new feature in MsClaw. It allows external code
 
 ### Extension Abstractions
 
-Extensions implement a simple interface: . Let's look at the abstraction layer.
-
-## The Extension System: A New Architecture
-
-The extension system is the major new feature in MsClaw. It allows external code to hook into the application lifecycle, register tools, handle commands, and extend HTTP endpoints—all without modifying the core codebase.
-
-### Extension Abstractions
-
 Extensions implement a simple interface. Let's look at the abstraction layer.
 
 ```bash
@@ -673,21 +665,6 @@ When a user sends a message through the Copilot Runtime:
 5. **Return response** — The response is sent back to the Copilot client
 
 This design makes it easy for extensions to observe and react to conversations without modifying core MsClaw code. A new memory extension could be added without touching CopilotRuntimeClient—it just registers hooks for these two events.
-
-## Extending MsClaw: Writing an Extension
-
-Here's what it looks like to write a simple extension. Extensions are .NET assemblies that implement **IExtension**.
-
-### Example: A Logging Extension
-
-
-
-This extension:
-- Inherits from **ExtensionBase** (provided by MsClaw)
-- Overrides **Register** to subscribe to hooks
-- Implements three hook handlers that just log to stdout
-
-Extensions can be arbitrarily complex: they can register AI tools, expose HTTP endpoints, manage state, call external APIs, all through the IMsClawPluginApi interface.
 
 ## Extending MsClaw: Writing an Extension
 
