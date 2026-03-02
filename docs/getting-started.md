@@ -54,49 +54,31 @@ Because `bootstrap.md` exists in a new mind, MsClaw enters bootstrap mode. The a
 2. **Agent file** — Role, domain, tools → creates `.github/agents/{name}.agent.md`
 3. **Memory** — Seeds `.working-memory/` with initial context from the conversation
 
-To chat with the agent, send HTTP requests to the API. You can use `curl`, the VS Code REST Client extension, or any HTTP tool.
+The easiest way to have this conversation is with one of the chat scripts below. The agent will ask you questions one at a time — answer naturally, it offers sensible defaults if you're unsure.
 
-### Start a session
+## Chat scripts (experimental)
+
+Lightweight terminal chat clients that connect to a running MsClaw instance. These are experimental and will be replaced eventually, but they work for quick conversations today.
+
+### PowerShell
+
+Browse the source: [scripts/chat.ps1](https://github.com/ianphil/msclaw/blob/master/scripts/chat.ps1)
+
+```powershell
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/ianphil/msclaw/master/scripts/chat.ps1" -OutFile chat.ps1
+.\chat.ps1
+```
+
+### Bash
+
+Browse the source: [scripts/chat.sh](https://github.com/ianphil/msclaw/blob/master/scripts/chat.sh) (requires `jq`)
 
 ```bash
-curl -s -X POST http://localhost:5050/session/new | jq
+curl -sO https://raw.githubusercontent.com/ianphil/msclaw/master/scripts/chat.sh && chmod +x chat.sh
+./chat.sh
 ```
 
-Returns a `sessionId` you'll use for subsequent messages.
-
-### Send a message
-
-```bash
-curl -s -X POST http://localhost:5050/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Hello, let'\''s get started!"}' | jq
-```
-
-The agent will begin asking you questions one at a time to build its identity. Answer naturally — it offers sensible defaults if you're unsure.
-
-### Using VS Code REST Client
-
-If you prefer a visual approach, create a file called `requests.http`:
-
-```http
-@host = http://localhost:5050
-
-### Health check
-GET {{host}}/health
-
-### Start a new session
-POST {{host}}/session/new
-
-### Chat
-POST {{host}}/chat
-Content-Type: application/json
-
-{
-  "message": "Hello, let's get started!"
-}
-```
-
-Click "Send Request" above each block to interact with the agent.
+Both scripts connect to `http://localhost:5050/chat`, show an animated spinner while waiting, and maintain session state across messages. Type `quit` to exit.
 
 ## After bootstrap
 
@@ -122,7 +104,16 @@ It reads `~/.msclaw/config.json` to find the last-used mind and starts serving. 
 msclaw --mind ~/another-agent
 ```
 
+## What's next
+
+- After 2-3 sessions, memory accumulates and the agent gets noticeably better
+- When mistakes happen, the agent adds rules to `.working-memory/rules.md`
+- After ~2 weeks, do the first memory consolidation (log → memory)
+- Explore the [Extension Developer Guide](extension-developer-guide.md) to add tools and capabilities
+
 ## API Reference
+
+MsClaw exposes a simple HTTP API. You can use `curl`, the VS Code REST Client extension, or any HTTP tool.
 
 | Method | Path | Description |
 |---|---|---|
@@ -132,9 +123,31 @@ msclaw --mind ~/another-agent
 | `POST` | `/command` | Execute a slash command (e.g., `/extensions`, `/reload`) |
 | `GET` | `/extensions` | List loaded extensions |
 
-## What's next
+### curl
 
-- After 2-3 sessions, memory accumulates and the agent gets noticeably better
-- When mistakes happen, the agent adds rules to `.working-memory/rules.md`
-- After ~2 weeks, do the first memory consolidation (log → memory)
-- Explore the [Extension Developer Guide](extension-developer-guide.md) to add tools and capabilities
+```bash
+curl -s -X POST http://localhost:5050/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello!"}' | jq
+```
+
+### VS Code REST Client
+
+Create a file called `requests.http`:
+
+```http
+@host = http://localhost:5050
+
+### Health check
+GET {{host}}/health
+
+### Chat
+POST {{host}}/chat
+Content-Type: application/json
+
+{
+  "message": "Hello!"
+}
+```
+
+Click "Send Request" above each block to interact with the agent.
