@@ -20,3 +20,4 @@
 - architecture: SDK's InfiniteSessionConfig auto-compacts at 80% context utilization — eliminates manual context window management
 - anti-pattern: BuildPrompt pattern (stuffing full conversation as text blob) replaced — SDK maintains proper user/assistant turn history natively
 - architecture: System message (SOUL.md + agents) is set once at session creation, not re-sent per message
+- spec: Distilled phase2-design.md (extension system) into a clean extension-spec.md — separated "what/why" (spec) from "how" (design with code examples); resolved all 4 open questions and integrated answers inline
