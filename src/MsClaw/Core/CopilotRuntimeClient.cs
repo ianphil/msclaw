@@ -1,6 +1,7 @@
 using GitHub.Copilot.SDK;
 using MsClaw.Models;
 using Microsoft.Extensions.Options;
+using System.Collections.Concurrent;
 
 namespace MsClaw.Core;
 
@@ -9,6 +10,7 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
     private readonly CopilotClient _client;
     private readonly MsClawOptions _options;
     private readonly IIdentityLoader _identityLoader;
+    private readonly ConcurrentDictionary<string, CopilotSession> _sessions = new();
 
     public CopilotRuntimeClient(
         CopilotClient client,
@@ -44,6 +46,7 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
             }
         }, cancellationToken);
 
+        _sessions[session.SessionId] = session;
         return session.SessionId;
     }
 
@@ -52,10 +55,7 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
         string message,
         CancellationToken cancellationToken = default)
     {
-        var session = await _client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
-        {
-            OnPermissionRequest = PermissionHandler.ApproveAll
-        }, cancellationToken);
+        var session = await GetOrResumeSessionAsync(sessionId, cancellationToken);
 
         var response = await session.SendAndWaitAsync(
             new MessageOptions { Prompt = message },
@@ -66,9 +66,18 @@ public sealed class CopilotRuntimeClient : ICopilotRuntimeClient
             ?? throw new InvalidOperationException("No assistant response received from Copilot session.");
     }
 
-    public async ValueTask DisposeAsync()
+    private async Task<CopilotSession> GetOrResumeSessionAsync(string sessionId, CancellationToken cancellationToken)
     {
-        // Do not dispose _client - DI container owns its lifecycle
-        await Task.CompletedTask;
+        if (_sessions.TryGetValue(sessionId, out var session))
+        {
+            return session;
+        }
+
+        var resumedSession = await _client.ResumeSessionAsync(sessionId, new ResumeSessionConfig
+        {
+            OnPermissionRequest = PermissionHandler.ApproveAll
+        }, cancellationToken);
+
+        return _sessions.GetOrAdd(sessionId, resumedSession);
     }
 }

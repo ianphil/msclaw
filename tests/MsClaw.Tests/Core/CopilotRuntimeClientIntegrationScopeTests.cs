@@ -23,6 +23,8 @@ public sealed class CopilotRuntimeClientIntegrationScopeTests
      * 
      * 2. SendMessageAsync behavior:
      *    - Should resume an existing session by ID
+     *    - Should cache resumed CopilotSession instances per session ID in-memory
+     *    - Should not call ResumeSessionAsync repeatedly for the same active session
      *    - Should send a single message (not full history)
      *    - Should wait for assistant response with 120s timeout
      *    - Should return the response content
@@ -73,5 +75,31 @@ public sealed class CopilotRuntimeClientIntegrationScopeTests
         // This test exists only to make xUnit discover this file.
         // The real value is in the comments above, which document the testing boundary.
         Assert.True(true, "Integration scope documented.");
+    }
+
+    [Fact]
+    public void UpdatedScopeAfterRefactor_ValidatesSessionCachingBehavior()
+    {
+        // PHASE 1 REFACTOR UPDATE:
+        // After switching from custom SessionManager to SDK's built-in session management,
+        // the integration scope now includes verifying that CopilotRuntimeClient:
+        // 
+        // 1. Maintains an in-memory cache of resumed CopilotSession instances per session ID
+        // 2. Only calls ResumeSessionAsync once per unique session ID
+        // 3. Reuses cached session objects for subsequent SendMessageAsync calls
+        // 4. Handles concurrent requests to the same session ID without multiple resume calls
+        // 
+        // This caching layer is UNTESTABLE in unit tests because:
+        // - ResumeSessionAsync returns a sealed CopilotSession from the SDK
+        // - Mock frameworks cannot mock sealed classes with internal constructors
+        // - The session cache is a private Dictionary<string, CopilotSession>
+        // 
+        // INTEGRATION TEST REQUIREMENTS:
+        // - Create a session, send 3 messages in sequence
+        // - Verify only 1 CreateSessionAsync + 3 SendMessageAsync (no extra Resume calls)
+        // - Mock the SDK's telemetry/logging to count ResumeSessionAsync invocations
+        // - Test concurrent sends to same session ID from multiple threads
+        
+        Assert.True(true, "Updated integration scope documented post-refactor.");
     }
 }

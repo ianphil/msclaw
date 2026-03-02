@@ -1,6 +1,6 @@
 namespace MsClaw.Core;
 
-public interface ICopilotRuntimeClient : IAsyncDisposable
+public interface ICopilotRuntimeClient
 {
     /// <summary>
     /// Creates a new SDK session. Returns the session ID.

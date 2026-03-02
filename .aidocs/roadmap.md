@@ -10,6 +10,8 @@ Three phases, in order. Each builds on the last.
 
 **Goal:** Replace the `MIND_ROOT` env var with a proper first-run experience. MsClaw becomes a framework — not just a hardwired instance.
 
+**SDK surface:** Minimal. Bootstrap resolves mind root and composes identity *before* the SDK client exists. The composed system message feeds into `SessionConfig.SystemMessage` at session creation time.
+
 ### What Was Built
 
 - **CLI argument parsing** — `--mind <path>`, `--new-mind <path>`, `--reset-config`
@@ -46,6 +48,8 @@ Three phases, in order. Each builds on the last.
 **Goal:** Modular capabilities via a plugin API. The gateway, channels, tools, and hooks all register as extensions — this is the seam that makes MsClaw composable.
 
 **What exists today:** Core capabilities (MindReader, SessionManager, IdentityLoader) are hardwired in DI. No plugin discovery, no registration API, no lifecycle management.
+
+**SDK surface:** `RegisterTool()` collects `AIFunction` instances (via `AIFunctionFactory.Create()`) and passes them to `SessionConfig.Tools` at session creation. `RegisterHook()` wraps the SDK's `SessionConfig.Hooks` (`OnPreToolUse`, `OnPostToolUse`, `OnSessionStart`, `OnSessionEnd`, `OnErrorOccurred`). `RegisterService()`, `RegisterCommand()`, and `RegisterHttpRoute()` have no SDK equivalent — they're pure .NET DI / ASP.NET concerns. Tools must be registered before session creation; the SDK wires them at `CreateSessionAsync()` time, not after.
 
 ### Architecture
 
@@ -101,6 +105,8 @@ Note: `RegisterChannel()` is **not** on this interface — it lives on the gatew
 
 **What exists today:** A single HTTP endpoint (`POST /chat`) that takes a message and returns a response. No channel abstraction, no message routing, no format conversion.
 
+**SDK surface:** Session routing is the core seam — `CreateSessionAsync()` for new users, `ResumeSessionAsync(sessionId)` for returning ones. Inbound messages go through `SendAndWaitAsync()` (or `SendAsync()` + event subscription for streaming). Outbound responses come from `AssistantMessageEvent.Data.Content` via `session.On()`. One singleton `CopilotClient` (spawns CLI process), many concurrent `CopilotSession` instances (one per user). Infinite sessions handle context/persistence automatically. Proactive messages (morning briefings) are just `SendAsync()` calls on a timer — the SDK doesn't care who initiates. Chunking, auth, and format conversion are post-SDK concerns.
+
 ### Architecture
 
 The gateway owns channels. Channel extensions register with the gateway via `RegisterChannel()` — a gateway-internal API, not the core plugin API. Once registered, the `ChannelManager` handles all lifecycle management. Core never imports channel types.
@@ -154,6 +160,7 @@ Gateway-internal lifecycle controller (modeled after OpenClaw's `server-channels
 - [ ] **Build Telegram adapter** — First channel. Leverage the [[Miss Moneypenny's Cellphone]] research (seedprod POC, Telegram Bot API). Registers via gateway's `RegisterChannel()`.
 - [ ] **Chunking strategy** — Telegram has a 4096-char message limit. Long responses need intelligent splitting (not mid-sentence, preserve code blocks).
 - [ ] **Allowlist / auth** — Who can talk to the agent? At minimum: a configurable allowlist of Telegram user IDs. No open access.
+- [ ] **Permission handling** — `PermissionHandler.ApproveAll` is hardcoded today. With remote users sending messages via Telegram, the agent can execute any tool without consent. Discuss with Ian: keep as-is, whitelist safe tools, or route permission requests to the channel?
 - [ ] **Decide hosting strategy** — Channels require always-on. Home server? Cloud VM? Container? This decision gates whether Telegram actually works day-to-day.
 
 ### Success Criteria
