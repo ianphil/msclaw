@@ -53,7 +53,8 @@ builder.Services.AddSingleton<CopilotClient>(sp =>
     {
         Cwd = Path.GetFullPath(options.MindRoot),
         AutoStart = true,
-        UseStdio = true
+        UseStdio = true,
+        CliPath = CliLocator.ResolveCopilotCliPath()
     });
 });
 
