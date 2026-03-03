@@ -3,7 +3,7 @@
 **Document Owner(s):** MsClaw Team  
 **Status:** Draft  
 **Target Release:** v1.0  
-**Link to Technical Spec:** [msclaw-gateway.md](msclaw-gateway.md) · [msclaw-gateway-protocol.md](msclaw-gateway-protocol.md)
+**Link to Technical Spec:** [msclaw-gateway.md](msclaw-gateway.md) · [msclaw-gateway-protocol.md](msclaw-gateway-protocol.md) · [msclaw-agent-runtime.md](msclaw-agent-runtime.md)
 
 ## Version History
 *Rule: No silent mutations. All changes after baseline must be recorded here.*
@@ -14,6 +14,7 @@
 | 1.1 | 2026-03-03 | MsClaw Team | Reconciled with Gateway Protocol spec — aligned transport, scalability, shutdown, streaming |
 | 2.0 | 2026-03-03 | MsClaw Team | Rewritten as epic-level overview. Feature-level requirements pushed down to sub-specs. All prior REQs preserved in their owning sub-spec. |
 | 2.1 | 2026-03-03 | MsClaw Team | Re-conformed to product-spec template: Mind Model moved into § 1.4, section numbering aligned, Edge Cases restored as § 3.3. |
+| 2.2 | 2026-03-03 | MsClaw Team | Added EPIC-08 Agent Runtime; updated edge case cross-references to point at agent runtime sub-spec. |
 | | | | |
 
 ---
@@ -113,15 +114,16 @@ Each epic below defines a high-level capability the gateway MUST deliver. The **
 | **EPIC-05** | Skills System | The gateway MUST discover, register, and execute skills that extend the agent's capabilities. This includes three-tier sourcing (bundled, workspace, managed), declarative descriptors, priority-based discovery, multiple execution modes (in-process, shell, script, node-routed, HTTP), node target selection policies, approval gates, timeout enforcement, operator management operations, and security controls (path traversal, env allowlisting, argument injection prevention). | [gateway-skills.md](gateway-skills.md) |
 | **EPIC-06** | Canvas Host | The gateway MUST allow the agent to push interactive HTML/JS applications to node screens and relay user interactions back. This includes canvas commands (present, hide, navigate, evaluate, snapshot, push events, reset), capability token lifecycle (minting, validation, sliding expiry, revocation, refresh), asset serving with path-traversal protection, user action bridge, OpenClaw compatibility, bridge injection, and live reload for development. | [gateway-canvas.md](gateway-canvas.md) |
 | **EPIC-07** | Graceful Shutdown | The gateway MUST shut down cleanly without losing in-flight work. On shutdown signal, it MUST notify all connected clients, stop accepting new connections, drain delivery queues, allow active operations to complete within a configurable timeout, stop all channel adapters, and terminate the agent runtime process. | [gateway-protocol.md](gateway-protocol.md) · [gateway-channels.md](gateway-channels.md) |
+| **EPIC-08** | Agent Runtime | The gateway MUST embed a single agent runtime that accepts user messages, loads identity from the mind, delegates inference to a model, executes tools, and streams replies as a uniform event sequence. This includes session-per-caller management (create, resume, list, reset, delete), per-caller and global concurrency control, abort support, three-tier tool registration (bundled, workspace, node-provided), configurable model selection, file attachments, caller context injection, identity reload, degraded-mode operation, and run timeout enforcement. | [gateway-agent-runtime.md](gateway-agent-runtime.md) |
 
 ### 3.3 Edge Cases & Error Handling
 
 Each sub-spec defines its own detailed edge cases. The following are gateway-wide concerns that span multiple subsystems:
 
 - **Mind directory missing or invalid:** The gateway MUST refuse to start and MUST log a message identifying which required files are missing. See [gateway-mind.md](gateway-mind.md).
-- **Agent runtime fails to start:** The gateway MUST report the failure via the readiness probe (non-200 status) and MUST log the error. The gateway process MUST remain alive. See [gateway-protocol.md](gateway-protocol.md).
+- **Agent runtime fails to start:** The gateway MUST report the failure via the readiness probe (non-200 status) and MUST log the error. The gateway process MUST remain alive. See [gateway-agent-runtime.md](gateway-agent-runtime.md) and [gateway-protocol.md](gateway-protocol.md).
 - **Channel connection failure:** A single channel failing MUST NOT prevent other channels or the core gateway from operating. The failed channel MUST retry independently. See [gateway-channels.md](gateway-channels.md).
-- **Concurrent messages from same caller:** The gateway MUST enforce one active agent stream per caller key. A second request while a stream is active MUST either queue or reject with a descriptive error. See [gateway-protocol.md](gateway-protocol.md) and [gateway-http-surface.md](gateway-http-surface.md).
+- **Concurrent messages from same caller:** The gateway MUST enforce one active agent stream per caller key. A second request while a stream is active MUST either queue or reject with a descriptive error. See [gateway-agent-runtime.md](gateway-agent-runtime.md), [gateway-protocol.md](gateway-protocol.md), and [gateway-http-surface.md](gateway-http-surface.md).
 - **Working memory files missing:** IF `memory.md`, `log.md`, or `rules.md` do not exist when the agent reads them, it MUST proceed without error. Missing files MUST be created on first write. See [gateway-mind.md](gateway-mind.md).
 
 ## 4. Non-Functional Requirements (Constraints)
