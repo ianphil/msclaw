@@ -27,34 +27,42 @@ Reference: [OpenClaw architecture](../../.ai/docs/openclaw-architecture.md) · [
                         │  │  workspace skills        │   │  /v1/chat/completions      │ │
                         │  └─────────────────────────┘   │  /v1/responses              │ │
                         │                                │  /hooks/{name}              │ │
-                        │                                └────────────────────────────┘ │
-                        └────────┬──────────────┬──────────────────┬───────────────────┘
-                                 │              │                  │            │
-                        SignalR  │     SignalR  │        SignalR   │            │ disk
-                                 │  role:"node" │                  │            │
-                 ┌───────────────┘              │                  │   ┌────────▼────────┐
-                 │                              │                  │   │  MIND (on disk)  │
-                 │                              │                  │   │                  │
-                 ▼                              ▼                  │   │  SOUL.md         │
-  ┌──────────────────────────┐  ┌──────────────────────────┐      │   │  .working-memory/│
-  │      CLIENT (operator)    │  │      NODE (device)        │     │   │  .github/agents/ │
-  │                           │  │                           │     │   │  skills/         │
-  │  CLI / Desktop /          │  │  macOS / iOS / Android /  │     │   └─────────────────┘
-  │  Web Admin                │  │  Headless                 │     │
-  │                           │  │                           │     └────────────────┐
-  │  ► health, status         │  │  ► camera.*               │                     │
-  │  ► send, agent            │  │  ► canvas.*               │                     ▼
-  │  ► subscribe events       │  │  ► screen.record          │     ┌──────────────────────────┐
-  │                           │  │  ► location.get           │     │      CLIENT (operator)    │
-  │  device identity          │  │                           │     │                           │
-  │  + pairing                │  │  device identity          │     │  Web UI / Automations     │
-  └──────────────────────────┘  │  + pairing + caps          │     │                           │
-                                 └──────────────────────────┘     │  ► send, agent            │
-                                                                   │  ► subscribe events       │
-                                                                   │                           │
-                                                                   │  device identity           │
-                                                                   │  + pairing                │
-                                                                   └──────────────────────────┘
+                        │  ┌─────────────────────────┐   └────────────────────────────┘ │
+                        │  │      CANVAS HOST        │                                  │
+                        │  │                         │                                  │
+                        │  │  /canvas/{token}/*      │                                  │
+                        │  │  HTML/JS app bundles    │                                  │
+                        │  │  capability tokens      │                                  │
+                        │  │                         │                                  │
+                        │  │  agent → node rendering │                                  │
+                        │  └────────────┬────────────┘                                  │
+                        └────────┬──────┼───────┬──────────────────┬───────────────────┘
+                                 │      │       │                  │            │
+                        SignalR  │      │ HTTP  │ SignalR          │            │ disk
+                                 │      │ fetch │ role:"node"      │            │
+                 ┌───────────────┘      │       │                  │   ┌────────▼────────┐
+                 │                      │       │                  │   │  MIND (on disk)  │
+                 │                      │       │                  │   │                  │
+                 ▼                      │       ▼                  │   │  SOUL.md         │
+  ┌──────────────────────────┐  ┌──────┼───────────────────┐      │   │  .working-memory/│
+  │      CLIENT (operator)    │  │      ▼                   │     │   │  .github/agents/ │
+  │                           │  │  NODE (device)           │     │   │  skills/         │
+  │  CLI / Desktop /          │  │                          │     │   └─────────────────┘
+  │  Web Admin                │  │  macOS / iOS / Android / │     │
+  │                           │  │  Headless                │     └────────────────┐
+  │  ► health, status         │  │                          │                      │
+  │  ► send, agent            │  │  ► camera.*              │                      ▼
+  │  ► subscribe events       │  │  ► screen.record         │    ┌──────────────────────────┐
+  │  ► browse mind, channels  │  │  ► location.get          │    │      CLIENT (operator)    │
+  │                           │  │                          │    │                           │
+  │  device identity          │  │  ► canvas.show  (render  │    │  Web UI / Automations     │
+  │  + pairing                │  │    HTML/JS in WebView)   │    │                           │
+  └──────────────────────────┘  │  ► canvas.input (send     │    │  ► send, agent            │
+                                 │    user actions back)    │    │  ► subscribe events       │
+                                 │                          │    │                           │
+                                 │  device identity         │    │  device identity           │
+                                 │  + pairing + caps        │    │  + pairing                │
+                                 └──────────────────────────┘    └──────────────────────────┘
 ```
 
 ## Flow Summary
@@ -62,6 +70,8 @@ Reference: [OpenClaw architecture](../../.ai/docs/openclaw-architecture.md) · [
 - **Clients** ask the Gateway to do things (send messages, run the agent, check health).
 - **Gateway** runs the **Agent** internally — identity → prompt → model → tools → reply.
 - **Nodes** provide hardware capabilities the Agent's tools can reach through the Gateway.
+- **Canvas** lets the Agent push interactive HTML/JS UI to nodes — the Gateway hosts the
+  assets, nodes render them in a WebView, and user input flows back via SignalR.
 - **Channels** bridge external messaging platforms into the agent pipeline.
 - All real-time connections use **ASP.NET Core SignalR** with auth middleware, role-based groups, and automatic reconnection.
 - Stateless HTTP endpoints serve health probes, OpenAI-compatible APIs, and inbound webhooks.
@@ -74,7 +84,8 @@ Reference: [OpenClaw architecture](../../.ai/docs/openclaw-architecture.md) · [
 | **Agent Runtime** | Embedded Copilot SDK client — identity loading, inference, tool execution | Inside the Gateway |
 | **Channel** | Adapter that bridges an external messaging platform into the agent pipeline | Plugin within the Gateway |
 | **Skill** | Reusable tool definition the agent can invoke (CLI command, script, API call) | Mind workspace or bundled |
-| **Node** | Device endpoint providing hardware capabilities (camera, screen, location) | macOS / iOS / Android / headless |
+| **Canvas** | Agent-controlled rendering surface — serves HTML/JS apps to nodes via capability tokens | Hosted by Gateway, rendered by nodes |
+| **Node** | Device endpoint providing hardware capabilities (camera, screen, canvas, location) | macOS / iOS / Android / headless |
 | **Client** | Operator interface for control-plane actions | CLI / Desktop / Web UI |
 
 ---
@@ -376,6 +387,11 @@ Skills that don't require node capabilities execute locally on the gateway host.
 | `camera.capture` | Take a photo | Yes |
 | `screen.record` | Record the screen | Yes |
 | `location.get` | Get device location | Yes |
+| `canvas.show` | Present HTML/JS app on a node screen | Yes |
+| `canvas.hide` | Hide the canvas on a node | Yes |
+| `canvas.navigate` | Change the canvas URL | Yes |
+| `canvas.eval` | Execute JS in the canvas WebView | Yes |
+| `canvas.snapshot` | Capture a screenshot of the canvas | Yes |
 
 ---
 
@@ -391,7 +407,7 @@ These serve integrations that don't need real-time streaming or can't use Signal
   client libraries can talk to the agent.
 - **Webhooks** — inbound hooks for channel adapters, CI/CD triggers, and
   external event sources.
-- **Control UI** — optional web interface for gateway administration.
+- **Canvas asset serving** — HTML/JS canvas apps served to nodes via capability tokens.
 
 ### Endpoints
 
@@ -402,6 +418,7 @@ These serve integrations that don't need real-time streaming or can't use Signal
 | `/v1/chat/completions` | POST | OpenAI Chat Completions compatible endpoint |
 | `/v1/responses` | POST | OpenAI Responses API compatible endpoint |
 | `/hooks/{name}` | POST | Named webhook ingress — routes to channel adapters or agent |
+| `/canvas/{token}/*` | GET | Canvas asset serving — capability-token-authenticated, for nodes |
 | `/gateway` | — | SignalR hub negotiate + transport endpoint |
 
 ### OpenAI-Compatible APIs
@@ -419,15 +436,102 @@ These serve integrations that don't need real-time streaming or can't use Signal
   or directly to the agent.
 - Configuration defines which webhooks are active and how they map to agent actions.
 
-### Control UI
+> **Detailed spec:** [msclaw-http-surface.md](msclaw-http-surface.md) — endpoint
+> schemas, auth, error handling.
 
-An optional web interface served by the gateway for administration:
+---
 
-- View gateway status, connected clients/nodes, active sessions.
-- Start/stop channels, view channel health.
-- Browse mind files, validate mind structure.
-- Send messages to the agent (built-in WebChat).
-- Served from embedded resources or a static file path.
+## 6. Canvas
+
+The canvas is a **rendering surface for nodes** — the agent pushes interactive
+HTML/JS apps to device screens. Canvas is agent-controlled, node-rendered, and
+uses capability tokens for auth.
+
+Maps to OpenClaw's `/__openclaw__/canvas/` and `/__openclaw__/a2ui/` subsystems.
+
+### Responsibilities
+
+- **Asset hosting** — serve HTML/JS/CSS canvas app bundles from the gateway.
+- **Capability tokens** — mint time-limited, per-node tokens so nodes can fetch
+  canvas assets without the full gateway token.
+- **Agent tool interface** — the `canvas.*` skills let the agent present, hide,
+  navigate, evaluate JS, and capture snapshots on node screens.
+- **User input bridge** — node WebViews capture user interactions and send them
+  back through SignalR as `canvas.input` events.
+
+### How It Works
+
+```
+Agent invokes canvas.show skill
+         │
+         ▼
+┌─────────────────────────┐
+│  Gateway mints           │   Capability token (144-bit random,
+│  capability token        │   10-minute sliding TTL)
+│  Builds scoped URL:      │
+│  /canvas/{token}/app.html│
+└────────┬────────────────┘
+         │
+         │ NodeInvokeRequest via SignalR
+         ▼
+┌─────────────────────────┐
+│  Node receives invoke    │   canvas.show { url: "/canvas/{token}/app.html" }
+│  Opens WebView           │
+│  Navigates to URL        │
+└────────┬────────────────┘
+         │
+         │ HTTP GET (with capability token in path)
+         ▼
+┌─────────────────────────┐
+│  Gateway validates token │   Serves HTML/JS/CSS
+│  Returns canvas assets   │   Refreshes token TTL
+└─────────────────────────┘
+         │
+         │ User interacts with canvas
+         ▼
+┌─────────────────────────┐
+│  Node WebView captures   │   Native bridge:
+│  user action             │   iOS: webkit.messageHandlers
+│  Sends via SignalR       │   Android: postMessage
+└────────┬────────────────┘
+         │
+         │ canvas.input event via SignalR
+         ▼
+┌─────────────────────────┐
+│  Gateway routes input    │   Delivered as tool result
+│  back to agent           │   to the running session
+└─────────────────────────┘
+```
+
+### Capability Tokens
+
+| Concern | Detail |
+|---------|--------|
+| **Generation** | 144-bit cryptographically random, base64url-encoded |
+| **TTL** | 10 minutes, sliding expiration (refreshed on each request) |
+| **Scope** | Per-node — each connected node gets its own token |
+| **URL format** | `/canvas/{token}/*` — token embedded in path |
+| **Validation** | Gateway checks token exists, is not expired, and belongs to requesting node |
+| **Refresh** | Node can explicitly refresh via `node.canvas.capability.refresh` hub method |
+
+### Canvas Skills
+
+| Skill | Description | Flow |
+|-------|-------------|------|
+| `canvas.show` | Present an HTML/JS app on a node's screen | Agent → Gateway → Node WebView |
+| `canvas.hide` | Hide the canvas on a node | Agent → Gateway → Node |
+| `canvas.navigate` | Change the URL displayed in the canvas | Agent → Gateway → Node WebView |
+| `canvas.eval` | Execute JavaScript in the canvas WebView | Agent → Gateway → Node → result |
+| `canvas.snapshot` | Capture a screenshot of the canvas | Agent → Gateway → Node → image |
+| `canvas.input` | (Inbound) User interaction from the canvas | Node → Gateway → Agent |
+
+### Canvas App Sources
+
+| Source | Location | Example |
+|--------|----------|---------|
+| **Bundled** | Embedded in gateway binary | Default dashboard, WebChat canvas |
+| **Workspace** | Mind directory (`canvas/` or `skills/canvas/`) | Agent-specific interactive apps |
+| **URL** | External URL passed to `canvas.show` | Third-party web apps |
 
 ---
 
@@ -442,13 +546,17 @@ An optional web interface served by the gateway for administration:
       "Token": null,
       "MindRoot": "~/src/ernist",
       "LoopbackBypass": true,
-      "MaxConcurrentSessions": 10,
-      "ControlUi": true
+      "MaxConcurrentSessions": 10
     },
     "Agent": {
       "DefaultModel": "gpt-5",
       "Streaming": true,
       "TimeoutSeconds": 600
+    },
+    "Canvas": {
+      "Enabled": true,
+      "Root": null,
+      "CapabilityTtlMinutes": 10
     },
     "Channels": {
       "Telegram": { "Enabled": false, "BotToken": null },
@@ -479,7 +587,9 @@ An optional web interface served by the gateway for administration:
 | Channel plugins (Baileys, grammY, etc.) | Channel adapters (contract-based) | Same pattern, C# interfaces |
 | Skills (bundled / managed / workspace) | Skills (bundled / managed / workspace) | Same three-tier model |
 | `~/.openclaw/openclaw.json` (JSON5) | `appsettings.json` (standard .NET config) | Env vars, user secrets, CLI args |
-| Canvas host (`/__openclaw__/canvas/`) | Control UI (optional web admin) | Scoped to admin, not agent UI |
+| Canvas host (`/__openclaw__/canvas/`) | Canvas host (`/canvas/{token}/*`) | Agent-controlled, node-rendered via capability tokens |
+| Canvas capability tokens | Capability tokens (per-node, 10min TTL) | Same pattern — time-limited, scoped to canvas assets |
+| a2ui (`/__openclaw__/a2ui/`) | Canvas (JSON→UI merged into canvas skills) | Simplified — a2ui concepts folded into `canvas.show` |
 | `/v1/chat/completions` | `/v1/chat/completions` | Same OpenAI-compatible surface |
 | `/v1/responses` | `/v1/responses` | Same OpenAI Responses API surface |
 | mDNS/Bonjour discovery | Not in v1 | Nodes connect by explicit URL |
@@ -495,8 +605,9 @@ Each subsystem will have its own detailed spec with contracts, schemas, and flow
 | SignalR API Server | [msclaw-gateway-protocol.md](msclaw-gateway-protocol.md) | ✅ Draft |
 | Agent Runtime Host | `msclaw-agent-runtime.md` | Planned |
 | Channel Hub | [msclaw-channels.md](msclaw-channels.md) | ✅ Draft |
-| Skills System | `msclaw-skills.md` | Planned |
-| HTTP Endpoints | `msclaw-http-surface.md` | Planned |
+| Skills System | [msclaw-skills.md](msclaw-skills.md) | ✅ Draft |
+| HTTP Endpoints | [msclaw-http-surface.md](msclaw-http-surface.md) | ✅ Draft |
+| Canvas | [msclaw-canvas.md](msclaw-canvas.md) | ✅ Draft |
 
 ## Open Questions
 
