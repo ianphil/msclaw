@@ -5,6 +5,7 @@ obj/
 *.suo
 *.cache
 *.vs/
+**/TestResults/
 
 ## Session data
 data/
