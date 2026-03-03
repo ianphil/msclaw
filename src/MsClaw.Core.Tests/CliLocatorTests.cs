@@ -38,4 +38,20 @@ public class CliLocatorTests
             Assert.Contains("PATH", ex.Message);
         }
     }
+
+    [Fact]
+    public void ResolveCliPath_KnownBinary_ReturnsExistingFile()
+    {
+        var binaryName = OperatingSystem.IsWindows() ? "cmd" : "bash";
+        var path = CliLocator.ResolveCliPath(binaryName);
+
+        Assert.True(File.Exists(path), $"Resolved path should exist on disk: {path}");
+    }
+
+    [Fact]
+    public void ResolveCliPath_EmptyString_ThrowsInvalidOperationException()
+    {
+        Assert.Throws<InvalidOperationException>(
+            () => CliLocator.ResolveCliPath(""));
+    }
 }
