@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="MsClaw.Core/MsClaw.Core.csproj" />
+  <Project Path="MsClaw.Core.Tests/MsClaw.Core.Tests.csproj" />
+  <Project Path="MsClaw.Integration.Tests/MsClaw.Integration.Tests.csproj" />
+</Solution>
