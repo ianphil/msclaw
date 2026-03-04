@@ -11,7 +11,7 @@
 | Version | Date | Author | Description of Changes |
 | :--- | :--- | :--- | :--- |
 | 1.0 | 2026-03-03 | MsClaw Team | Initial Draft — derived from technical mind spec |
-| | | | |
+| 2.0 | 2026-03-04 | MsClaw Team | Refactor — split requirements into Library Primitives vs Agent Runtime Behavior. Clarified that the agent writes to the mind using its own Copilot CLI tools, not library-provided write operations. |
 
 ---
 
@@ -31,6 +31,11 @@ MsClaw agents need a persistent identity, knowledge base, and memory that surviv
 
 MsClaw needs a file-backed system where one directory on disk is the single source of truth for an agent's personality, knowledge, and memory — with clear structure, validation, and security guarantees.
 
+The system has two layers of responsibility:
+
+1.  **Library Primitives (MsClaw.Core)** — scaffolding, validation, identity assembly, path-protected reading, git sync, and client creation. These are compiled code that host applications compose.
+2.  **Agent Runtime Behavior** — knowledge management (IDEA buckets), working-memory lifecycle, and bootstrap conversation. These are behaviors the Copilot agent performs at runtime using its own built-in filesystem tools (read, write, create, move, delete), guided by the personality and instructions loaded from the mind. The library does not provide write operations; the agent writes to the mind directly.
+
 ### 1.2 Business Value
 
 - **Portable identity:** A mind is a directory. It can be copied, version-controlled with git, and shared across machines — no database or cloud service required.
@@ -38,6 +43,7 @@ MsClaw needs a file-backed system where one directory on disk is the single sour
 - **Structured knowledge:** The IDEA storage model (Initiatives, Domains, Expertise, Archive) gives every piece of user knowledge one canonical home, eliminating duplication and enabling cross-referencing.
 - **Persistent memory:** The working-memory subsystem gives agents continuity across sessions — the agent remembers what it learned, the mistakes it made, and the context it needs without the user repeating themselves.
 - **Safe by default:** Path-traversal protection ensures the mind directory is a hard security boundary, preventing agents from reading or exposing files outside the mind.
+- **Agent autonomy:** The agent manages its own knowledge and memory using standard filesystem tools. The library sets the stage; the agent takes ownership.
 
 ### 1.3 Success Metrics (KPIs)
 
@@ -51,7 +57,7 @@ MsClaw needs a file-backed system where one directory on disk is the single sour
 | Persona Name | Description | Key Needs for this Feature |
 | :--- | :--- | :--- |
 | **Agent Operator** | A human user who creates, configures, and maintains an agent's personality and knowledge | Needs to scaffold a new mind, customize identity files, organize knowledge into IDEA buckets, and validate the mind structure — all using a text editor and the filesystem. |
-| **MsClaw Agent** | The AI agent that reads its identity and memory from the mind at runtime | Needs to read its personality (SOUL.md + agent files), access its knowledge base (IDEA buckets), read and write working memory, and maintain cross-references between knowledge items. |
+| **MsClaw Agent** | The AI agent that reads its identity and memory from the mind at runtime | Needs to read its personality (SOUL.md + agent files), access its knowledge base (IDEA buckets), read and write working memory, and maintain cross-references between knowledge items. Writes to the mind using its own Copilot CLI filesystem tools — the library provides read access and identity assembly, not write operations. |
 | **Gateway Consumer** | A host application (Gateway, CLI, or test harness) that composes mind primitives to bring an agent to life | Needs to validate the mind, assemble identity, create a configured client, and expose mind operations to the agent through defined capabilities. |
 
 ## 3. Functional Requirements (The "What")
@@ -59,15 +65,21 @@ MsClaw needs a file-backed system where one directory on disk is the single sour
 
 ### 3.1 Core User Flows
 
-1.  **Scaffold a New Mind:** An operator creates a new mind directory. The system generates the required directory structure, seed files, and empty working-memory files. The directory is ready for the bootstrap workflow.
-2.  **Bootstrap an Agent:** An operator starts a conversation with a newly scaffolded agent. The agent guides the operator through three phases — identity customization, agent file creation, and memory seeding — then removes the setup guide. The mind is ready for normal operation.
-3.  **Validate a Mind:** An operator or consumer checks whether a mind directory has the required structure. The system reports errors (missing required elements), warnings (missing optional elements), and discovered elements.
-4.  **Assemble Agent Identity:** A consumer loads the agent's system message from the mind. The system reads the core identity file and any agent instruction files, strips metadata headers, and concatenates them into a single string in a deterministic order.
-5.  **Read Mind Files:** The agent or consumer reads a file or lists a directory within the mind. The system resolves the path, verifies it stays within the mind boundary, and returns the content.
-6.  **Manage Knowledge (IDEA):** During conversation, the agent classifies user-shared knowledge into the appropriate IDEA bucket (Initiatives, Domains, Expertise) and writes it to disk. Completed or abandoned initiatives are moved to Archive. Cross-references between items use wiki-links.
-7.  **Manage Working Memory:** At session start, the agent reads its curated memory and learned rules. During the session, the agent appends observations to the log. Periodically, the agent consolidates the log into curated memory. On mistakes, the agent appends a rule.
+1.  **Scaffold a New Mind:** An operator creates a new mind directory. The library generates the required directory structure, seed files, and empty working-memory files. The directory is ready for the bootstrap workflow.
+2.  **Bootstrap an Agent:** An operator starts a conversation with a newly scaffolded agent. The agent (using its own tools) guides the operator through three phases — identity customization, agent file creation, and memory seeding — then removes the setup guide. The mind is ready for normal operation.
+3.  **Validate a Mind:** An operator or consumer checks whether a mind directory has the required structure. The library reports errors (missing required elements), warnings (missing optional elements), and discovered elements.
+4.  **Assemble Agent Identity:** A consumer loads the agent's system message from the mind. The library reads the core identity file and any agent instruction files, strips metadata headers, and concatenates them into a single string in a deterministic order.
+5.  **Read Mind Files:** The agent or consumer reads a file or lists a directory within the mind. The library resolves the path, verifies it stays within the mind boundary, and returns the content.
+6.  **Manage Knowledge (IDEA):** During conversation, the agent uses its own filesystem tools to classify user-shared knowledge into the appropriate IDEA bucket (Initiatives, Domains, Expertise) and writes it to disk. Completed or abandoned initiatives are moved to Archive. Cross-references between items use wiki-links.
+7.  **Manage Working Memory:** At session start, the agent reads its curated memory and learned rules. During the session, the agent uses its own filesystem tools to append observations to the log. Periodically, the agent consolidates the log into curated memory. On mistakes, the agent appends a rule.
 
 ### 3.2 Feature Requirements & Acceptance Criteria
+
+> **Ownership Model:** Requirements are split into two groups. **Library Primitives** (REQ-001 through REQ-014, REQ-029) are compiled code in MsClaw.Core that host applications compose. **Agent Runtime Behavior** (REQ-015 through REQ-028, REQ-030) describes what the Copilot agent does at runtime using its own built-in filesystem tools, guided by its personality and instructions. The library does not provide write operations — the agent writes to the mind directly.
+
+#### 3.2.1 Library Primitives
+
+*These requirements are implemented in MsClaw.Core. The library provides scaffolding, validation, identity assembly, path-protected reading, optional git sync, and client creation.*
 
 | ID | Feature | Description | Acceptance Criteria (Pass/Fail) |
 | :--- | :--- | :--- | :--- |
@@ -84,46 +96,60 @@ MsClaw needs a file-backed system where one directory on disk is the single sour
 | **REQ-011** | Path-Traversal Protection | All file reads within the mind MUST be validated to ensure the resolved path stays within the mind root directory. | - A relative path that resolves to a location inside the mind root MUST be allowed.<br>- A relative path containing traversal segments (e.g., `../`) that resolves outside the mind root MUST be rejected.<br>- An absolute path MUST be treated as relative to the mind root (leading separator stripped).<br>- Rejection MUST NOT disclose filesystem structure outside the mind. |
 | **REQ-012** | File Reading | The system MUST allow reading the content of any file within the mind boundary. | - A request for an existing file within the mind MUST return its content.<br>- A request for a non-existent file MUST return a not-found error. |
 | **REQ-013** | Directory Listing | The system MUST allow listing entries in any directory within the mind boundary. | - A request for an existing directory within the mind MUST return relative paths of its entries.<br>- A request for the mind root MUST return its top-level entries. |
-| **REQ-014** | Git Sync | The system MAY optionally synchronize the mind from a git remote before reads. | - IF git sync is enabled and the mind is a git repository with remote changes, the system MUST update the local copy using fast-forward merge only before performing the read.<br>- IF the remote has diverged (fast-forward not possible), the system MUST continue with the local copy without error.<br>- IF the mind is not a git repository, the system MUST continue without error.<br>- IF git sync is disabled (default), no git operations MUST occur. |
+| **REQ-014** | Git Sync | The library MAY optionally synchronize the mind from a git remote before reads. | - IF git sync is enabled and the mind is a git repository with remote changes, the library MUST update the local copy using fast-forward merge only before performing the read.<br>- IF the remote has diverged (fast-forward not possible), the library MUST continue with the local copy without error.<br>- IF the mind is not a git repository, the library MUST continue without error.<br>- IF git sync is disabled (default), no git operations MUST occur. |
+| **REQ-029** | Client Creation from Mind | The library MUST support creating a configured agent runtime client pointed at a specific mind directory. | - The created client MUST use the identity assembled from the specified mind.<br>- The library MUST locate the required CLI binary on the system PATH.<br>- On Windows, the library MUST prefer platform-specific executable extensions when searching for the CLI binary. |
+
+#### 3.2.2 Agent Runtime Behavior
+
+*These requirements describe what the Copilot agent does at runtime. The agent uses its own built-in Copilot CLI filesystem tools (read, write, create, move, delete) to manage the mind — guided by the personality and instructions loaded from SOUL.md and agent files. The library does not provide write operations; the agent writes to the mind directly.*
+
+*Testing these requirements verifies agent behavior during conversation, not library API calls.*
+
+| ID | Feature | Description | Acceptance Criteria (Pass/Fail) |
+| :--- | :--- | :--- | :--- |
 | **REQ-015** | IDEA Bucket — Initiatives | The mind MUST support a bucket for active projects with a defined end state. | - Each initiative MUST be stored in its own subdirectory containing a main note and a next-actions file.<br>- Completed or abandoned initiatives MUST be movable to the Archive bucket. |
 | **REQ-016** | IDEA Bucket — Domains | The mind MUST support a bucket for recurring areas with no end date. | - Each domain MUST be stored in its own subdirectory.<br>- Domain content MUST be allowed to grow and evolve over time. |
 | **REQ-017** | IDEA Bucket — Expertise | The mind MUST support a bucket for reference material, patterns, and learnings. | - Expertise items MUST be stored as individual files within the expertise directory. |
 | **REQ-018** | IDEA Bucket — Archive | The mind MUST support a bucket for completed or abandoned work. | - Items moved to Archive MUST remain readable and searchable.<br>- Archive MUST accept items from any other IDEA bucket. |
 | **REQ-019** | Cross-Linking | Knowledge items across IDEA buckets MUST support cross-references using wiki-links. | - Each fact MUST have exactly one canonical home in the mind.<br>- References from other locations MUST use wiki-link syntax.<br>- When a canonical source moves between buckets, its inbound links SHOULD be updated. |
-| **REQ-020** | Working Memory — Curated Reference | The mind MUST support a curated long-term reference file in working memory that the agent reads at every session start to orient itself. | - The file MUST be read before the first user message is processed in each session.<br>- The file MUST be updated only during consolidation, never mid-task.<br>- IF the file does not exist, the system MUST proceed without error. |
-| **REQ-021** | Working Memory — Chronological Log | The mind MUST support an append-only chronological log in working memory for raw observations. | - New entries MUST be appended; existing entries MUST NOT be modified or deleted.<br>- IF the file does not exist on first write, it MUST be created.<br>- Long sessions (over 30 minutes) SHOULD include periodic observation entries. |
-| **REQ-022** | Working Memory — Learned Rules | The mind MUST support a rules file in working memory where the agent records one-liner lessons from mistakes. | - New rules MUST be appended; existing rules MUST NOT be removed.<br>- The file MUST be read at every session start.<br>- IF the file does not exist on first write, it MUST be created. |
+| **REQ-020** | Working Memory — Curated Reference | The mind MUST support a curated long-term reference file in working memory that the agent reads at every session start to orient itself. | - The file MUST be read before the first user message is processed in each session.<br>- The file MUST be updated only during consolidation, never mid-task.<br>- IF the file does not exist, the agent MUST proceed without error. |
+| **REQ-021** | Working Memory — Chronological Log | The mind MUST support an append-only chronological log in working memory for raw observations. | - New entries MUST be appended; existing entries MUST NOT be modified or deleted.<br>- IF the file does not exist on first write, the agent MUST create it.<br>- Long sessions (over 30 minutes) SHOULD include periodic observation entries. |
+| **REQ-022** | Working Memory — Learned Rules | The mind MUST support a rules file in working memory where the agent records one-liner lessons from mistakes. | - New rules MUST be appended; existing rules MUST NOT be removed.<br>- The file MUST be read at every session start.<br>- IF the file does not exist on first write, the agent MUST create it. |
 | **REQ-023** | Working Memory — Consolidation | The agent MUST periodically consolidate the chronological log into the curated reference file. | - Consolidation SHOULD be triggered after approximately 14 days elapsed or approximately 150 lines accumulated in the log.<br>- Consolidation MUST NOT occur mid-task — only during natural breaks.<br>- After consolidation, the log MUST be trimmed and the curated reference MUST reflect the agent's current understanding. |
-| **REQ-024** | Knowledge vs. Observation Separation | The system MUST enforce a separation between user-shared knowledge (IDEA) and agent-observed information (working memory). | - When a user shares a fact, the agent MUST write it to the appropriate IDEA bucket.<br>- When the agent notices a pattern, makes a mistake, or records a session observation, it MUST write to working memory.<br>- Working memory is agent-private; IDEA is user-visible. |
+| **REQ-024** | Knowledge vs. Observation Separation | The agent MUST enforce a separation between user-shared knowledge (IDEA) and agent-observed information (working memory). | - When a user shares a fact, the agent MUST write it to the appropriate IDEA bucket.<br>- When the agent notices a pattern, makes a mistake, or records a session observation, it MUST write to working memory.<br>- Working memory is agent-private; IDEA is user-visible. |
 | **REQ-025** | Bootstrap — Phase 1: Identity | The bootstrap workflow MUST guide the operator through customizing the core identity file via interactive conversation. | - The agent MUST ask about name, personality type, mission, boundaries, and tone.<br>- On completion, the core identity file MUST be updated to reflect the operator's answers. |
 | **REQ-026** | Bootstrap — Phase 2: Agent File | The bootstrap workflow MUST guide the operator through creating an agent instruction file. | - The agent MUST ask about primary role, domain context, and operational principles.<br>- On completion, a new agent instruction file MUST exist in the agents directory. |
 | **REQ-027** | Bootstrap — Phase 3: Memory Seeding | The bootstrap workflow MUST auto-populate working memory from the bootstrap conversation. | - The curated reference file MUST contain context and conventions from the bootstrap.<br>- The log file MUST contain an entry recording the bootstrap session.<br>- The setup guide file MUST be deleted after this phase completes. |
-| **REQ-028** | IDEA Auto-Creation | IF an IDEA bucket directory does not exist when the agent needs to write knowledge to it, the system MUST create it automatically. | - Writing to a non-existent IDEA bucket directory MUST succeed after auto-creating the directory.<br>- The auto-created directory MUST appear in subsequent directory listings. |
-| **REQ-029** | Client Creation from Mind | The system MUST support creating a configured agent runtime client pointed at a specific mind directory. | - The created client MUST use the identity assembled from the specified mind.<br>- The system MUST locate the required CLI binary on the system PATH.<br>- On Windows, the system MUST prefer platform-specific executable extensions when searching for the CLI binary. |
+| **REQ-028** | IDEA Auto-Creation | IF an IDEA bucket directory does not exist when the agent needs to write knowledge to it, the agent MUST create it automatically. | - Writing to a non-existent IDEA bucket directory MUST succeed after the agent creates the directory.<br>- The auto-created directory MUST appear in subsequent directory listings. |
 | **REQ-030** | Inbox | The mind MAY include an inbox directory for incoming items that the agent triages into IDEA buckets. | - Items placed in the inbox MUST be readable by the agent.<br>- The agent SHOULD triage inbox items into the appropriate IDEA bucket during conversation. |
 
 ### 3.3 Edge Cases & Error Handling
 
+#### Library Edge Cases
+
 *   **Mind root does not exist:** Validation MUST report an error. Consumers MUST refuse to start if validation fails.
 *   **Core identity file missing:** Validation MUST report a specific error. Identity assembly MUST fail. The agent MUST NOT start without a core identity.
 *   **Working-memory directory missing:** Validation MUST report a specific error. The mind is invalid without it.
-*   **Working-memory files missing (memory.md, rules.md, log.md):** The agent MUST treat a missing file as empty on read and create it on first write. This is expected in a freshly scaffolded mind before the first session.
-*   **Path traversal attempt:** The system MUST reject the request and MUST NOT disclose any information about the filesystem outside the mind root.
-*   **Scaffolding into non-empty directory:** The system MUST reject the operation to prevent accidental overwrite of an existing mind.
-*   **Git sync with diverged history:** The system MUST continue with the local copy. Fast-forward-only merge prevents unexpected conflict resolution in the mind directory.
-*   **Git sync on non-git directory:** The system MUST continue without error. Git operations fail silently when the mind is not a git repository.
+*   **Path traversal attempt:** The library MUST reject the request and MUST NOT disclose any information about the filesystem outside the mind root.
+*   **Scaffolding into non-empty directory:** The library MUST reject the operation to prevent accidental overwrite of an existing mind.
+*   **Git sync with diverged history:** The library MUST continue with the local copy. Fast-forward-only merge prevents unexpected conflict resolution in the mind directory.
+*   **Git sync on non-git directory:** The library MUST continue without error. Git operations fail silently when the mind is not a git repository.
 *   **Agent instruction file with malformed frontmatter:** IF the file does not begin with a valid frontmatter delimiter on line 1, the file MUST be included as-is (no stripping attempted).
-*   **Concurrent writes to working memory:** The system SHOULD ensure that append operations to the log do not corrupt existing entries.
+
+#### Agent Edge Cases
+
+*   **Working-memory files missing (memory.md, rules.md, log.md):** The agent MUST treat a missing file as empty on read and create it on first write. This is expected in a freshly scaffolded mind before the first session.
+*   **Concurrent writes to working memory:** The agent SHOULD ensure that append operations to the log do not corrupt existing entries.
 
 ## 4. Non-Functional Requirements (Constraints)
 *Rule: All constraints must be quantifiable and measurable.*
 
 *   **Performance:** Identity assembly MUST complete within 500ms for a mind containing up to 20 agent instruction files. Validation MUST complete within 200ms for a mind with the full optional directory structure.
 *   **Scalability:** The mind system MUST support IDEA buckets containing up to 1,000 files each without degradation of file listing or reading performance.
-*   **Security & Compliance:** All file reads MUST be constrained to the mind root directory via path-traversal protection. Path resolution MUST use ordinal (locale-independent) string comparison. The mind root is a hard security boundary — no read operation MAY escape it.
-*   **Platform / Environment:** The mind system MUST operate on Windows, macOS, and Linux. Path handling MUST normalize platform-specific separators before validation. The system MUST require the GitHub Copilot CLI binary to be installed and available on the system PATH.
+*   **Security & Compliance:** All library file reads MUST be constrained to the mind root directory via path-traversal protection. Path resolution MUST use ordinal (locale-independent) string comparison. The mind root is a hard security boundary — no library read operation MAY escape it. (Note: The agent's own Copilot CLI tools operate within the agent's working directory context, which the host application sets to the mind root.)
+*   **Platform / Environment:** The library MUST operate on Windows, macOS, and Linux. Path handling MUST normalize platform-specific separators before validation. The library MUST require the GitHub Copilot CLI binary to be installed and available on the system PATH.
 *   **Determinism:** Identity assembly MUST be deterministic — the same mind directory MUST always produce the same output, regardless of platform or invocation order.
-*   **Compatibility:** The system MUST target .NET 10.0 or later.
+*   **Compatibility:** The library MUST target .NET 10.0 or later.
 
 ## 5. User Experience (UX) & Design
 
@@ -137,23 +163,24 @@ MsClaw needs a file-backed system where one directory on disk is the single sour
 
 *   Multi-mind (multi-agent) support within a single host application is out of scope.
 *   Remote minds (loading a mind from a URL instead of a local path) are out of scope.
-*   Mind export/import as a portable archive (zip, tarball) is out of scope.
+*   Mind export/import as a portable archive (zip, tarball) are out of scope.
 *   Encryption of working-memory files at rest is out of scope.
 *   Full-text search indexing across IDEA buckets and working memory is out of scope.
 *   A link graph builder or query engine for wiki-link cross-references is out of scope.
 *   Automatic archive policies (auto-archiving stale initiatives after inactivity) are out of scope.
 *   Mind schema versioning and migration tooling are out of scope.
-*   Duplicate detection or normalization enforcement by the system is out of scope — normalization is a convention followed by the agent through its instructions, not enforced by the runtime.
+*   Duplicate detection or normalization enforcement by the library is out of scope — normalization is a convention followed by the agent through its instructions, not enforced by the runtime.
 *   The specific persistence mechanism for sessions (file-based vs. database) is out of scope for this specification.
+*   **Library-provided write operations are out of scope.** The agent writes to the mind using its own Copilot CLI filesystem tools. The library provides scaffolding (initial structure creation) and read-only access (validation, identity assembly, file reading). All runtime writes to IDEA buckets, working memory, and bootstrap artifacts are the agent's responsibility.
 
 ## 7. Dependencies & Assumptions
 
 ### 7.1 Dependencies
 
-*   **GitHub Copilot SDK:** The agent runtime depends on the Copilot SDK for model inference, session management, and tool execution.
-*   **GitHub Copilot CLI:** The Copilot SDK requires the `copilot` CLI binary to be installed and available on PATH. The mind system's client creation depends on locating this binary.
-*   **Host Application (Gateway or CLI):** The mind system provides primitives (scaffolding, validation, reading, identity assembly). A host application MUST compose these primitives to bring an agent to life.
-*   **Filesystem Access:** The mind directory MUST be on local disk accessible to the host process. File read/write operations are direct filesystem I/O.
+*   **GitHub Copilot SDK:** The agent runtime depends on the Copilot SDK for model inference, session management, and tool execution. The SDK's built-in tools (file read/write/create/move/delete) are the mechanism the agent uses to manage the mind at runtime.
+*   **GitHub Copilot CLI:** The Copilot SDK requires the `copilot` CLI binary to be installed and available on PATH. The library's client creation depends on locating this binary.
+*   **Host Application (Gateway or CLI):** The library provides primitives (scaffolding, validation, reading, identity assembly, client creation). A host application MUST compose these primitives to bring an agent to life. The host sets the agent's working directory to the mind root, giving the agent's built-in tools access to the mind.
+*   **Filesystem Access:** The mind directory MUST be on local disk accessible to the host process. Library reads are protected by path-traversal validation. Agent writes use the Copilot CLI's own filesystem tools.
 
 ### 7.2 Assumptions
 
@@ -161,5 +188,7 @@ MsClaw needs a file-backed system where one directory on disk is the single sour
 *   We assume the mind directory is on local disk accessible to the host process.
 *   We assume operators are comfortable editing Markdown files in a text editor to customize their agent's personality and knowledge.
 *   We assume git is available on the system PATH when git sync is enabled, but git is not required for core mind functionality.
-*   We assume working-memory consolidation thresholds (approximately 14 days or approximately 150 log lines) are guidelines enforced by the agent's instructions, not by the runtime.
-*   We assume the agent, not the runtime, is responsible for maintaining wiki-link integrity when moving items between IDEA buckets.
+*   We assume the agent's Copilot CLI tools provide filesystem read, write, create, move, and delete operations. The library does not duplicate these capabilities.
+*   We assume working-memory consolidation thresholds (approximately 14 days or approximately 150 log lines) are guidelines enforced by the agent's instructions, not by the library.
+*   We assume the agent, not the library, is responsible for maintaining wiki-link integrity when moving items between IDEA buckets.
+*   We assume the agent, not the library, is responsible for all IDEA bucket writes, working-memory management, and bootstrap file mutations. The library's role ends after scaffolding the structure and assembling the identity.

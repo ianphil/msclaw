@@ -34,11 +34,6 @@ public sealed class MindReader : IMindReader
 
         process.Start();
         await process.WaitForExitAsync(cancellationToken);
-        if (process.ExitCode != 0)
-        {
-            var error = await process.StandardError.ReadToEndAsync(cancellationToken);
-            throw new InvalidOperationException($"mind sync failed: {error}");
-        }
     }
 
     public async Task<string> ReadFileAsync(string path, CancellationToken cancellationToken = default)
