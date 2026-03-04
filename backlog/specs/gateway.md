@@ -15,6 +15,7 @@
 | 2.0 | 2026-03-03 | MsClaw Team | Rewritten as epic-level overview. Feature-level requirements pushed down to sub-specs. All prior REQs preserved in their owning sub-spec. |
 | 2.1 | 2026-03-03 | MsClaw Team | Re-conformed to product-spec template: Mind Model moved into § 1.4, section numbering aligned, Edge Cases restored as § 3.3. |
 | 2.2 | 2026-03-03 | MsClaw Team | Added EPIC-08 Agent Runtime; updated edge case cross-references to point at agent runtime sub-spec. |
+| 2.3 | 2026-03-04 | MsClaw Team | Added EPIC-09 Heartbeat System and EPIC-10 Cron System; updated user flows and edge cases. |
 | | | | |
 
 ---
@@ -101,6 +102,12 @@ This section defines the gateway's capability areas at the epic level. Each epic
 
 8. **Agent Consolidates Memory:** After several sessions, the agent reviews its `log.md` entries, distills durable insights into `memory.md` and new lessons into `rules.md`, then continues the conversation with an updated internal model.
 
+9. **Heartbeat Checks for Pending Work:** The heartbeat interval elapses. The agent runs a turn in the main session, reads its heartbeat instructions, reviews queued system events, and either delivers actionable information to the operator or suppresses the cycle silently.
+
+10. **Operator Schedules a Reminder:** The operator tells the agent "remind me about the standup in 20 minutes." The agent creates a one-shot cron job. When the time arrives, the cron system fires the job, enqueues the reminder as a system event, wakes the heartbeat, and the agent delivers the reminder.
+
+11. **Recurring Job Delivers to Channel:** A cron job fires on schedule. The agent runs the task in an isolated session, produces a summary, and the cron system delivers it to the configured messaging channel. The operator receives the message in their app.
+
 ### 3.2 Epic Requirements
 
 Each epic below defines a high-level capability the gateway MUST deliver. The **Sub-Spec** column links to the document containing the feature-level requirements, acceptance criteria, edge cases, and non-functional constraints.
@@ -115,6 +122,8 @@ Each epic below defines a high-level capability the gateway MUST deliver. The **
 | **EPIC-06** | Canvas Host | The gateway MUST allow the agent to push interactive HTML/JS applications to node screens and relay user interactions back. This includes canvas commands (present, hide, navigate, evaluate, snapshot, push events, reset), capability token lifecycle (minting, validation, sliding expiry, revocation, refresh), asset serving with path-traversal protection, user action bridge, OpenClaw compatibility, bridge injection, and live reload for development. | [gateway-canvas.md](gateway-canvas.md) |
 | **EPIC-07** | Graceful Shutdown | The gateway MUST shut down cleanly without losing in-flight work. On shutdown signal, it MUST notify all connected clients, stop accepting new connections, drain delivery queues, allow active operations to complete within a configurable timeout, stop all channel adapters, and terminate the agent runtime process. | [gateway-protocol.md](gateway-protocol.md) · [gateway-channels.md](gateway-channels.md) |
 | **EPIC-08** | Agent Runtime | The gateway MUST embed a single agent runtime that accepts user messages, loads identity from the mind, delegates inference to a model, executes tools, and streams replies as a uniform event sequence. This includes session-per-caller management (create, resume, list, reset, delete), per-caller and global concurrency control, abort support, three-tier tool registration (bundled, workspace, node-provided), configurable model selection, file attachments, caller context injection, identity reload, degraded-mode operation, and run timeout enforcement. | [gateway-agent-runtime.md](gateway-agent-runtime.md) |
+| **EPIC-09** | Heartbeat System | The gateway MUST run a periodic awareness loop in the main agent session that checks for pending work, processes queued system events, and delivers actionable output to the operator. This includes configurable interval (default 30 minutes), heartbeat instruction file from the mind, suppression-token-based noise filtering, on-demand wake with priority-based coalescing, active hours restriction, delivery target configuration, and concurrency guards against active operator conversations. | [gateway-heartbeat.md](gateway-heartbeat.md) |
+| **EPIC-10** | Cron System | The gateway MUST support scheduled job execution with three schedule types (one-shot timestamp, fixed interval, cron expression with timezone). This includes main-session jobs (system event + heartbeat wake), isolated-session jobs (full agent turn with model override), delivery modes (announce to channel, webhook POST, none), persistent job store, concurrency control, exponential backoff retry, run history with auto-pruning, staggered scheduling, failure alerts, and operator management operations (create, list, enable, disable, delete). | [gateway-cron.md](gateway-cron.md) |
 
 ### 3.3 Edge Cases & Error Handling
 
@@ -125,6 +134,8 @@ Each sub-spec defines its own detailed edge cases. The following are gateway-wid
 - **Channel connection failure:** A single channel failing MUST NOT prevent other channels or the core gateway from operating. The failed channel MUST retry independently. See [gateway-channels.md](gateway-channels.md).
 - **Concurrent messages from same caller:** The gateway MUST enforce one active agent stream per caller key. A second request while a stream is active MUST either queue or reject with a descriptive error. See [gateway-agent-runtime.md](gateway-agent-runtime.md), [gateway-protocol.md](gateway-protocol.md), and [gateway-http-surface.md](gateway-http-surface.md).
 - **Working memory files missing:** IF `memory.md`, `log.md`, or `rules.md` do not exist when the agent reads them, it MUST proceed without error. Missing files MUST be created on first write. See [gateway-mind.md](gateway-mind.md).
+- **Cron job fails repeatedly:** Recurring jobs MUST remain enabled and apply exponential backoff. One-shot jobs MUST retry up to the configured limit, then disable. The operator MUST be alerted on failure. See [gateway-cron.md](gateway-cron.md).
+- **Heartbeat fires during active conversation:** The heartbeat MUST NOT run concurrently with an active operator conversation. It MUST wait or defer to the next cycle. See [gateway-heartbeat.md](gateway-heartbeat.md).
 
 ## 4. Non-Functional Requirements (Constraints)
 
