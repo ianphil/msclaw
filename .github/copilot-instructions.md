@@ -52,6 +52,10 @@ Optional:
 
 The canonical memory directory is `.working-memory/` — do not rename it.
 
+## Design Principle: Never Rewrite What You've Already Imported
+
+Before implementing any capability — file I/O, search, session management, tool execution — check whether the SDK or framework you're building on already provides it. The Copilot SDK wraps the Copilot CLI, which already reads and writes files, manages sessions, and orchestrates tools. If you write a custom file writer, you're not adding functionality — you're creating a second, unmanaged path to the same resource, one that won't benefit from the SDK's error handling, permissions model, or future improvements. When in doubt, trace the dependency chain: if a library you depend on already does the thing, your job is to call it, not rebuild it.
+
 ## Conventions
 
 - **Target framework**: net10.0

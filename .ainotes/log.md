@@ -9,3 +9,7 @@
 - sdk-analysis: SDK ConnectionState is binary (Connected/Error) — no degraded concept. Must build Starting→Ready→Degraded→Stopped state machine
 - sdk-analysis: SDK has zero concurrency control — no per-caller or global throttle. Must build both (REQ-006, REQ-007)
 - mind-model: MindReader.cs removed exit-code error handling from sync process — sync failures now silently succeed
+
+## 2026-03-05
+- instructions: SignalR instructions file was missing streaming (IAsyncEnumerable), hub lifecycle events, hub return values, IUserIdProvider, strongly typed IHubContext, and client results patterns
+- design-principle: Added "never rewrite what you've already imported" to copilot-instructions — trace the dependency chain before building custom wrappers
