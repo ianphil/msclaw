@@ -21,6 +21,10 @@ dotnet test src/MsClaw.Core.Tests/MsClaw.Core.Tests.csproj --collect:"Code Cover
 
 The solution file is `src/MsClaw.slnx` (not at repo root).
 
+## Spec Test Efficiency
+
+When running intent/spec tests via `specs/tests/Invoke-SpecTests.ps1`, run the full suite once to establish baseline results. After that initial run, iterate using `-RerunFailed` or `-TestName` and execute one test at a time until failures are resolved, rather than repeatedly re-running the entire suite.
+
 ## Architecture
 
 MsClaw.Core is a class library (NuGet package) for building AI agents with persistent personalities using the GitHub Copilot SDK. It is **not** a web app or framework — it provides primitives that consumers compose.

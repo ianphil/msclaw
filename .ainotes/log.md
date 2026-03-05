@@ -19,3 +19,4 @@
 - gateway-planning: Quick commands (mind validate, mind scaffold) should use standalone ServiceCollection, not spin up the full ASP.NET Core host
 - spec-tests: Cross-file assertions (e.g. "hub is mapped in StartCommand" but Given references GatewayHub.cs) should be split into separate tests — one per file — so the judge focuses its Given correctly
 - spec-tests: Invoke-SpecTests.ps1 validates target existence before dry-run — expected to fail with [not-implemented] until implementation phase begins
+- system-commandline: System.CommandLine 2.0.3 command wiring uses Command.Add(...) plus Parse(...).Invoke(...) semantics; older AddCommand/AddOption patterns fail in this codebase.
