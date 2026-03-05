@@ -17,3 +17,5 @@
 - gateway-planning: System.CommandLine and ASP.NET Core have separate host builder patterns — StartCommand must build WebApplication independently to avoid conflicts
 - gateway-planning: MindValidator returns structured result (Errors/Warnings/Found lists) which maps cleanly to Spectre.Console tree rendering
 - gateway-planning: Quick commands (mind validate, mind scaffold) should use standalone ServiceCollection, not spin up the full ASP.NET Core host
+- spec-tests: Cross-file assertions (e.g. "hub is mapped in StartCommand" but Given references GatewayHub.cs) should be split into separate tests — one per file — so the judge focuses its Given correctly
+- spec-tests: Invoke-SpecTests.ps1 validates target existence before dry-run — expected to fail with [not-implemented] until implementation phase begins

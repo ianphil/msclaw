@@ -151,15 +151,24 @@ And it returns 200 when the hosted service indicates ready
 And it returns 503 when the hosted service indicates not ready
 ```
 
-### SignalR hub is mapped at /gateway
+### GatewayHub extends SignalR Hub
 
-Future epics need a real-time communication hub already wired into the host. Without the hub mapped, EPIC-03 has no foundation.
+Future epics need a real-time communication hub class. Without a Hub subclass, there is nothing to map to a route.
 
 ```
 Given the src/MsClaw.Gateway/Hubs/GatewayHub.cs file
 When examining the class definition
 Then it extends Hub from Microsoft.AspNetCore.SignalR
-And it is mapped at the /gateway route in StartCommand
+```
+
+### SignalR hub is mapped at /gateway route
+
+The hub must be wired into the ASP.NET Core pipeline at a known route. Without the mapping, clients cannot connect to the real-time endpoint.
+
+```
+Given the src/MsClaw.Gateway/Commands/StartCommand.cs file
+When examining the endpoint mapping
+Then it maps GatewayHub at the /gateway route
 ```
 
 ## DI Registration
