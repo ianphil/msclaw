@@ -20,10 +20,22 @@ public sealed class CopilotGatewayClient : IGatewayClient
     public CopilotGatewayClient(CopilotClient client)
         : this(
             startAsync: client.StartAsync,
-            createSessionAsync: async (config, cancellationToken) => new CopilotGatewaySession(
-                await client.CreateSessionAsync(config ?? new SessionConfig(), cancellationToken)),
-            resumeSessionAsync: async (sessionId, config, cancellationToken) => new CopilotGatewaySession(
-                await client.ResumeSessionAsync(sessionId, config ?? new ResumeSessionConfig(), cancellationToken)),
+            createSessionAsync: async (config, cancellationToken) =>
+            {
+                var effectiveConfig = config ?? new SessionConfig();
+                effectiveConfig.OnPermissionRequest ??= PermissionHandler.ApproveAll;
+
+                return new CopilotGatewaySession(
+                    await client.CreateSessionAsync(effectiveConfig, cancellationToken));
+            },
+            resumeSessionAsync: async (sessionId, config, cancellationToken) =>
+            {
+                var effectiveConfig = config ?? new ResumeSessionConfig();
+                effectiveConfig.OnPermissionRequest ??= PermissionHandler.ApproveAll;
+
+                return new CopilotGatewaySession(
+                    await client.ResumeSessionAsync(sessionId, effectiveConfig, cancellationToken));
+            },
             listSessionsAsync: async cancellationToken => await client.ListSessionsAsync(new SessionListFilter(), cancellationToken),
             deleteSessionAsync: client.DeleteSessionAsync,
             disposeAsync: client.DisposeAsync)

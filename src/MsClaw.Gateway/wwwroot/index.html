@@ -194,6 +194,7 @@
         }
 
         function handleSessionEvent(sessionEvent) {
+            const eventType = readValue(sessionEvent, "type", "Type") ?? "";
             const data = sessionEvent?.data ?? sessionEvent?.Data ?? {};
             const deltaContent = readValue(data, "deltaContent", "DeltaContent");
             const fullContent = readValue(data, "content", "Content");
@@ -201,15 +202,23 @@
             const message = readValue(data, "message", "Message");
             const errorType = readValue(data, "errorType", "ErrorType");
 
+            const isReasoning = eventType.includes("reasoning");
+            const isMessage = eventType.includes("message");
+            const isAssistantContent = isMessage || (!isReasoning && !eventType);
+
             if (typeof deltaContent === "string" && deltaContent.length > 0) {
-                activeAssistantMessage.textContent += deltaContent;
-                scrollConversationToBottom();
+                if (isAssistantContent) {
+                    activeAssistantMessage.textContent += deltaContent;
+                    scrollConversationToBottom();
+                }
                 return;
             }
 
             if (typeof fullContent === "string" && fullContent.length > 0) {
-                activeAssistantMessage.textContent = fullContent;
-                scrollConversationToBottom();
+                if (isAssistantContent) {
+                    activeAssistantMessage.textContent = fullContent;
+                    scrollConversationToBottom();
+                }
                 return;
             }
 
@@ -223,6 +232,10 @@
                 if (activeAssistantMessage && !activeAssistantMessage.textContent.trim()) {
                     activeAssistantMessage.textContent = message;
                 }
+                return;
+            }
+
+            if (eventType === "session.idle" || eventType === "pending_messages.modified" || eventType === "session.usage_info" || eventType === "assistant.usage" || eventType === "assistant.streaming_delta") {
                 return;
             }
 

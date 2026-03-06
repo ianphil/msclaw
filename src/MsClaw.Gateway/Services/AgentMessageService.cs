@@ -89,7 +89,7 @@ public sealed class AgentMessageService
     /// </summary>
     private SessionConfig CreateSessionConfig()
     {
-        var sessionConfig = new SessionConfig();
+        var sessionConfig = new SessionConfig { Streaming = true };
         if (string.IsNullOrWhiteSpace(hostedService.SystemMessage))
         {
             return sessionConfig;
