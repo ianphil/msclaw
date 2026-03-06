@@ -121,7 +121,11 @@ public static class StartCommand
 
     public static async Task<int> RunGatewayAsync(GatewayOptions options, CancellationToken cancellationToken = default)
     {
-        var builder = WebApplication.CreateBuilder();
+        var assemblyDir = Path.GetDirectoryName(typeof(StartCommand).Assembly.Location)!;
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            WebRootPath = Path.Combine(assemblyDir, "wwwroot")
+        });
         builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
         ConfigureServices(builder.Services, options);
         var app = builder.Build();

@@ -19,18 +19,28 @@ dotnet build src/MsClaw.slnx --nologo
 
 The output binary lives at `src/MsClaw.Gateway/bin/Debug/net10.0/msclaw` (`.exe` on Windows).
 
-For convenience, alias it or run via `dotnet run`:
+> **Tip:** When using `dotnet run`, put a bare `--` before any msclaw flags so they aren't swallowed by dotnet.
+
+---
+
+## 0 — Set your working directory
+
+**Important:** Change to a directory _outside_ the MsClaw repo before scaffolding or starting the gateway. The Copilot CLI walks the directory tree looking for `.github/copilot-instructions.md` — if the mind lives inside the repo, the CLI loads the repo's instruction files instead of the mind's personality, and the bootstrap flow won't activate.
 
 ```bash
-# Option A — run directly
-./src/MsClaw.Gateway/bin/Debug/net10.0/msclaw
-
-# Option B — dotnet run (from gateway project dir)
-cd src/MsClaw.Gateway
-dotnet run --
+# Use ~/src (or any directory outside the msclaw repo)
+cd ~/src
 ```
 
-> **Tip:** When using `dotnet run`, put a bare `--` before any msclaw flags so they aren't swallowed by dotnet.
+All commands below assume `~/src` as the working directory and reference the gateway binary by its full path. Adjust if your repo checkout is somewhere other than `~/src/msclaw`:
+
+```bash
+# Alias for convenience (bash/zsh)
+alias msclaw=~/src/msclaw/src/MsClaw.Gateway/bin/Debug/net10.0/msclaw
+
+# PowerShell equivalent
+Set-Alias msclaw ~/src/msclaw/src/MsClaw.Gateway/bin/Debug/net10.0/msclaw.exe
+```
 
 ---
 
@@ -162,6 +172,30 @@ The built-in chat interface connects to the SignalR hub automatically. You can:
 - **Abort a run** — click "Abort" to cancel an active response
 
 The connection status indicator shows whether the SignalR connection is active.
+
+### GENESIS bootstrap (fresh minds only)
+
+When the gateway starts with a freshly scaffolded mind, the mind contains a `bootstrap.md` file and a generic `SOUL.md`. The agent's `.github/copilot-instructions.md` tells it to detect `bootstrap.md` and run the GENESIS flow instead of normal conversation.
+
+**What you should see:**
+
+1. **Send any message** (even just "hi") — the agent detects the unbootstrapped mind and starts GENESIS.
+
+2. **Question 1 — Character:** The agent asks you to pick a fictional character whose personality will become the agent's voice. It offers suggestions (Jarvis, Alfred, Wednesday, Samwise, etc.) or you can name anyone.
+
+3. **Question 2 — Role:** The agent asks what role the agent should fill — Chief of Staff, PM, Engineering Partner, Research Assistant, or something custom.
+
+4. **SOUL.md generation:** The agent rewrites `SOUL.md` in the character's voice, tailored to the role. It asks you to confirm or adjust.
+
+5. **Agent file generation:** Creates `.github/agents/{agent-name}.agent.md` with operating instructions for the role.
+
+6. **Working memory seeding:** Seeds `.working-memory/memory.md`, `rules.md`, and `log.md` with initial context.
+
+7. **Cleanup:** Deletes `bootstrap.md`. The mind is now live.
+
+After GENESIS completes, start a new session — the agent should respond in the character's voice with the role's operational style. Three skills are pre-installed: **capture**, **commit**, and **daily-report**.
+
+> **Tip:** If the agent responds generically without starting GENESIS, the Copilot CLI may be loading instruction files from a parent directory (e.g., the repo's `.github/copilot-instructions.md`). Make sure the mind directory is **outside** any git repository — see Step 0.
 
 ---
 
