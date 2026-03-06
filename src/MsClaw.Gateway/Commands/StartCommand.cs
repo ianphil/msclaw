@@ -2,6 +2,7 @@ using System.CommandLine;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Core;
@@ -56,16 +57,24 @@ public static class StartCommand
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
     }
 
-    public static IResult BuildHealthResult(IGatewayHostedService hostedService)
+    public static IResult BuildLivenessResult()
+    {
+        return Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK);
+    }
+
+    public static IResult BuildReadinessResult(IGatewayHostedService hostedService)
     {
         return hostedService.IsReady
             ? Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK)
-            : Results.Json(new { status = "Unhealthy", error = hostedService.Error }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            : Results.Json(
+                new { status = "Unhealthy", component = "hosted-service", error = hostedService.Error },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     public static void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/healthz", (IGatewayHostedService hostedService) => BuildHealthResult(hostedService));
+        endpoints.MapGet("/health", () => BuildLivenessResult());
+        endpoints.MapGet("/health/ready", ([FromServices] IGatewayHostedService hostedService) => BuildReadinessResult(hostedService));
         endpoints.MapHub<GatewayHub>("/gateway");
     }
 

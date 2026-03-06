@@ -106,17 +106,17 @@ Phase 1 (Coordination) ──► Phase 2 (Hub) ──► Phase 5 (Chat UI)
 ## Phase 3: Health Probes
 
 ### Liveness Endpoint
-- [ ] T041 [TEST] Write test: GET /health returns 200 with { status: "Healthy" } always
-- [ ] T042 [IMPL] Add GET /health endpoint to MapEndpoints
+- [x] T041 [TEST] Write test: GET /health returns 200 with { status: "Healthy" } always
+- [x] T042 [IMPL] Add GET /health endpoint to MapEndpoints
 
 ### Readiness Endpoint
-- [ ] T043 [TEST] Write test: GET /health/ready returns 200 when hosted service is ready
-- [ ] T044 [TEST] Write test: GET /health/ready returns 503 with component detail when not ready
-- [ ] T045 [IMPL] Add GET /health/ready endpoint to MapEndpoints
+- [x] T043 [TEST] Write test: GET /health/ready returns 200 when hosted service is ready
+- [x] T044 [TEST] Write test: GET /health/ready returns 503 with component detail when not ready
+- [x] T045 [IMPL] Add GET /health/ready endpoint to MapEndpoints
 
 ### Remove Legacy /healthz
-- [ ] T046 [TEST] Write test: /healthz no longer exists (or redirects)
-- [ ] T047 [IMPL] Replace /healthz with /health in MapEndpoints
+- [x] T046 [TEST] Write test: /healthz no longer exists (or redirects)
+- [x] T047 [IMPL] Replace /healthz with /health in MapEndpoints
 
 ## Phase 4: OpenResponses Library
 

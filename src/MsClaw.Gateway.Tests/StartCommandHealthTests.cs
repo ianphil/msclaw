@@ -1,5 +1,7 @@
 using System.Text;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Gateway.Commands;
 using MsClaw.Gateway.Hosting;
@@ -10,23 +12,7 @@ namespace MsClaw.Gateway.Tests;
 public class StartCommandHealthTests
 {
     [Fact]
-    public async Task BuildHealthResult_Ready_ReturnsHealthy200()
-    {
-        var hostedService = new StubGatewayHostedService
-        {
-            State = GatewayState.Ready,
-            IsReady = true
-        };
-
-        var result = StartCommand.BuildHealthResult(hostedService);
-        var (statusCode, body) = await ExecuteResultAsync(result);
-
-        Assert.Equal(StatusCodes.Status200OK, statusCode);
-        Assert.Contains("Healthy", body, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task BuildHealthResult_NotReady_ReturnsUnhealthy503()
+    public async Task BuildLivenessResult_NotReady_ReturnsHealthy200()
     {
         var hostedService = new StubGatewayHostedService
         {
@@ -35,11 +21,83 @@ public class StartCommandHealthTests
             Error = "Validation failed"
         };
 
-        var result = StartCommand.BuildHealthResult(hostedService);
+        var result = StartCommand.BuildLivenessResult();
+        var (statusCode, body) = await ExecuteResultAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+        Assert.Contains("Healthy", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildReadinessResult_Ready_ReturnsHealthy200()
+    {
+        var hostedService = new StubGatewayHostedService
+        {
+            State = GatewayState.Ready,
+            IsReady = true
+        };
+
+        var result = StartCommand.BuildReadinessResult(hostedService);
+        var (statusCode, body) = await ExecuteResultAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+        Assert.Contains("Healthy", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildReadinessResult_NotReady_ReturnsUnhealthy503WithHostedServiceComponent()
+    {
+        var hostedService = new StubGatewayHostedService
+        {
+            State = GatewayState.Failed,
+            IsReady = false,
+            Error = "Validation failed"
+        };
+
+        var result = StartCommand.BuildReadinessResult(hostedService);
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, statusCode);
         Assert.Contains("Unhealthy", body, StringComparison.Ordinal);
+        Assert.Contains("hosted-service", body, StringComparison.Ordinal);
+        Assert.Contains("Validation failed", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MapEndpoints_MapsHealthAndReadyEndpoints()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSignalR();
+        var app = builder.Build();
+
+        StartCommand.MapEndpoints(app);
+
+        var routePatterns = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(static source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(static endpoint => endpoint.RoutePattern.RawText)
+            .ToArray();
+
+        Assert.Contains("/health", routePatterns, StringComparer.Ordinal);
+        Assert.Contains("/health/ready", routePatterns, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void MapEndpoints_DoesNotMapLegacyHealthzEndpoint()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Services.AddSignalR();
+        var app = builder.Build();
+
+        StartCommand.MapEndpoints(app);
+
+        var routePatterns = ((IEndpointRouteBuilder)app).DataSources
+            .SelectMany(static source => source.Endpoints)
+            .OfType<RouteEndpoint>()
+            .Select(static endpoint => endpoint.RoutePattern.RawText)
+            .ToArray();
+
+        Assert.DoesNotContain("/healthz", routePatterns, StringComparer.Ordinal);
     }
 
     private static async Task<(int StatusCode, string Body)> ExecuteResultAsync(IResult result)

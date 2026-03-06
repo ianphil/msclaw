@@ -8,3 +8,5 @@
 - DI: CallerRegistry is registered as concrete singleton, then forwarded to IConcurrencyGate and ISessionMap via GetRequiredService — this ensures both interfaces resolve to the same instance.
 - streaming: SDK push events bridge cleanly to SignalR streaming via Channel<SessionEvent>, with SessionIdleEvent and SessionErrorEvent serving as natural terminal markers.
 - disposal: registering GatewayHostedService as both hosted service and IGatewayClient means DI consumers must support async disposal semantics in tests and service providers.
+
+- health: Split liveness from readiness because startup failures should keep /health green while /health/ready reports hosted-service initialization errors, and minimal API service parameters in route lambdas need [FromServices] to avoid body inference.
