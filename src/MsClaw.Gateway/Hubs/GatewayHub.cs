@@ -9,7 +9,7 @@ namespace MsClaw.Gateway.Hubs;
 /// <summary>
 /// Routes SignalR gateway operations to the underlying message and session services.
 /// </summary>
-public sealed class GatewayHub(AgentMessageService messageService, IGatewayClient client, ISessionMap sessionMap) : Hub<IGatewayHubClient>
+public sealed class GatewayHub(AgentMessageService messageService, ISessionPool sessionPool) : Hub<IGatewayHubClient>
 {
     /// <summary>
     /// Sends a prompt for the connected caller and streams the resulting session events.
@@ -22,22 +22,11 @@ public sealed class GatewayHub(AgentMessageService messageService, IGatewayClien
     }
 
     /// <summary>
-    /// Creates a new session for the connected caller and tracks the mapping.
+    /// Lists all sessions known to the session pool.
     /// </summary>
-    public async Task<string> CreateSession(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<(string CallerKey, string SessionId)>> ListSessions(CancellationToken cancellationToken)
     {
-        await using var session = await client.CreateSessionAsync(cancellationToken: cancellationToken);
-        sessionMap.SetSessionId(Context.ConnectionId, session.SessionId);
-
-        return session.SessionId;
-    }
-
-    /// <summary>
-    /// Lists all sessions known to the gateway client.
-    /// </summary>
-    public Task<IReadOnlyList<SessionMetadata>> ListSessions(CancellationToken cancellationToken)
-    {
-        return client.ListSessionsAsync(cancellationToken);
+        return Task.FromResult(sessionPool.ListCallers());
     }
 
     /// <summary>
@@ -45,8 +34,7 @@ public sealed class GatewayHub(AgentMessageService messageService, IGatewayClien
     /// </summary>
     public async Task<IReadOnlyList<SessionEvent>> GetHistory(CancellationToken cancellationToken)
     {
-        var sessionId = GetCallerSessionId();
-        await using var session = await client.ResumeSessionAsync(sessionId, cancellationToken: cancellationToken);
+        var session = GetCallerSession();
 
         return await session.GetMessagesAsync(cancellationToken);
     }
@@ -56,22 +44,30 @@ public sealed class GatewayHub(AgentMessageService messageService, IGatewayClien
     /// </summary>
     public async Task AbortResponse(CancellationToken cancellationToken)
     {
-        var sessionId = GetCallerSessionId();
-        await using var session = await client.ResumeSessionAsync(sessionId, cancellationToken: cancellationToken);
+        var session = GetCallerSession();
         await session.AbortAsync(cancellationToken);
     }
 
     /// <summary>
-    /// Resolves the tracked session identifier for the current caller.
+    /// Removes the caller's session from the pool when the connection closes.
     /// </summary>
-    private string GetCallerSessionId()
+    public override async Task OnDisconnectedAsync(Exception? exception)
     {
-        var sessionId = sessionMap.GetSessionId(Context.ConnectionId);
-        if (string.IsNullOrWhiteSpace(sessionId))
+        await sessionPool.RemoveAsync(Context.ConnectionId);
+        await base.OnDisconnectedAsync(exception);
+    }
+
+    /// <summary>
+    /// Resolves the pooled session for the current caller.
+    /// </summary>
+    private IGatewaySession GetCallerSession()
+    {
+        var session = sessionPool.TryGet(Context.ConnectionId);
+        if (session is null)
         {
             throw new InvalidOperationException($"No session is tracked for caller '{Context.ConnectionId}'.");
         }
 
-        return sessionId;
+        return session;
     }
 }

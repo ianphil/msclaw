@@ -3,12 +3,11 @@ using System.Collections.Concurrent;
 namespace MsClaw.Gateway.Services;
 
 /// <summary>
-/// Stores per-caller coordination primitives for gateway request handling.
+/// Stores per-caller concurrency gates for gateway request handling.
 /// </summary>
-public sealed class CallerRegistry : IConcurrencyGate, ISessionMap
+public sealed class CallerRegistry : IConcurrencyGate
 {
     private readonly ConcurrentDictionary<string, SemaphoreSlim> gates = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, string> sessions = new(StringComparer.Ordinal);
 
     /// <summary>
     /// Attempts to acquire the caller's gate without blocking the current thread.
@@ -38,36 +37,5 @@ public sealed class CallerRegistry : IConcurrencyGate, ISessionMap
         }
 
         gate.Release();
-    }
-
-    /// <summary>
-    /// Gets the tracked session identifier for the specified caller key.
-    /// </summary>
-    public string? GetSessionId(string callerKey)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(callerKey);
-
-        return sessions.TryGetValue(callerKey, out var sessionId) ? sessionId : null;
-    }
-
-    /// <summary>
-    /// Stores or replaces the tracked session identifier for the specified caller key.
-    /// </summary>
-    public void SetSessionId(string callerKey, string sessionId)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(callerKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
-        sessions[callerKey] = sessionId;
-    }
-
-    /// <summary>
-    /// Lists the tracked caller-to-session mappings.
-    /// </summary>
-    public IReadOnlyList<(string CallerKey, string SessionId)> ListCallers()
-    {
-        return sessions
-            .Select(static pair => (pair.Key, pair.Value))
-            .OrderBy(static pair => pair.Key, StringComparer.Ordinal)
-            .ToArray();
     }
 }

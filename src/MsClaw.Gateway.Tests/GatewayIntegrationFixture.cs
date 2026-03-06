@@ -53,7 +53,7 @@ public sealed class GatewayIntegrationFixture : IAsyncLifetime
         });
         builder.Services.AddSingleton<CallerRegistry>();
         builder.Services.AddSingleton<IConcurrencyGate>(sp => sp.GetRequiredService<CallerRegistry>());
-        builder.Services.AddSingleton<ISessionMap>(sp => sp.GetRequiredService<CallerRegistry>());
+        builder.Services.AddSingleton<ISessionPool, SessionPool>();
         builder.Services.AddSingleton<IGatewayClient>(GatewayClient);
         builder.Services.AddSingleton<IGatewayHostedService>(HostedService);
         builder.Services.AddSingleton<AgentMessageService>();

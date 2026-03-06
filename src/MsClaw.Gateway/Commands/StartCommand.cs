@@ -50,7 +50,7 @@ public static class StartCommand
         services.AddSingleton<IMindReader>(_ => new MindReader(options.MindPath));
         services.AddSingleton<CallerRegistry>();
         services.AddSingleton<IConcurrencyGate>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
-        services.AddSingleton<ISessionMap>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
+        services.AddSingleton<ISessionPool, SessionPool>();
         services.AddSingleton<GatewayHostedService>();
         services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());

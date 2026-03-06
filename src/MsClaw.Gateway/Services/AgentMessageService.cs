@@ -10,21 +10,21 @@ namespace MsClaw.Gateway.Services;
 public sealed class AgentMessageService
 {
     private readonly IConcurrencyGate concurrencyGate;
-    private readonly ISessionMap sessionMap;
+    private readonly ISessionPool sessionPool;
     private readonly IGatewayClient client;
     private readonly IGatewayHostedService hostedService;
 
     /// <summary>
-    /// Initializes the service with the shared coordination, session, and hosting dependencies.
+    /// Initializes the service with the shared coordination, session pool, and hosting dependencies.
     /// </summary>
     public AgentMessageService(
         IConcurrencyGate concurrencyGate,
-        ISessionMap sessionMap,
+        ISessionPool sessionPool,
         IGatewayClient client,
         IGatewayHostedService hostedService)
     {
         this.concurrencyGate = concurrencyGate;
-        this.sessionMap = sessionMap;
+        this.sessionPool = sessionPool;
         this.client = client;
         this.hostedService = hostedService;
     }
@@ -46,7 +46,21 @@ public sealed class AgentMessageService
 
         try
         {
-            await using var session = await GetOrCreateSessionAsync(callerKey, cancellationToken);
+            var session = await sessionPool.GetOrCreateAsync(callerKey, async ct =>
+            {
+                var sessionConfig = new SessionConfig { Streaming = true };
+                if (string.IsNullOrWhiteSpace(hostedService.SystemMessage) is false)
+                {
+                    sessionConfig.SystemMessage = new SystemMessageConfig
+                    {
+                        Mode = SystemMessageMode.Append,
+                        Content = hostedService.SystemMessage
+                    };
+                }
+
+                return await client.CreateSessionAsync(sessionConfig, ct);
+            }, cancellationToken);
+
             var (subscription, events) = SessionEventBridge.Bridge(session, cancellationToken);
             try
             {
@@ -65,42 +79,5 @@ public sealed class AgentMessageService
         {
             concurrencyGate.Release(callerKey);
         }
-    }
-
-    /// <summary>
-    /// Resolves the session for the caller, creating one when needed.
-    /// </summary>
-    private async Task<IGatewaySession> GetOrCreateSessionAsync(string callerKey, CancellationToken cancellationToken)
-    {
-        var existingSessionId = sessionMap.GetSessionId(callerKey);
-        if (string.IsNullOrWhiteSpace(existingSessionId) is false)
-        {
-            return await client.ResumeSessionAsync(existingSessionId, cancellationToken: cancellationToken);
-        }
-
-        var session = await client.CreateSessionAsync(CreateSessionConfig(), cancellationToken);
-        sessionMap.SetSessionId(callerKey, session.SessionId);
-
-        return session;
-    }
-
-    /// <summary>
-    /// Creates the session configuration for newly created gateway sessions.
-    /// </summary>
-    private SessionConfig CreateSessionConfig()
-    {
-        var sessionConfig = new SessionConfig { Streaming = true };
-        if (string.IsNullOrWhiteSpace(hostedService.SystemMessage))
-        {
-            return sessionConfig;
-        }
-
-        sessionConfig.SystemMessage = new SystemMessageConfig
-        {
-            Mode = SystemMessageMode.Append,
-            Content = hostedService.SystemMessage
-        };
-
-        return sessionConfig;
     }
 }

@@ -40,7 +40,7 @@ public class StartCommandDiTests
     }
 
     [Fact]
-    public async Task ConfigureServices_RegistersSessionMapAsSameCallerRegistryInstance()
+    public async Task ConfigureServices_RegistersSessionPoolAsSingleton()
     {
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
@@ -48,10 +48,10 @@ public class StartCommandDiTests
         StartCommand.ConfigureServices(services, options);
 
         await using var provider = services.BuildServiceProvider();
-        var gate = provider.GetRequiredService<IConcurrencyGate>();
-        var sessionMap = provider.GetRequiredService<ISessionMap>();
+        var first = provider.GetRequiredService<ISessionPool>();
+        var second = provider.GetRequiredService<ISessionPool>();
 
-        Assert.Same(gate, sessionMap);
+        Assert.Same(first, second);
     }
 
     [Fact]

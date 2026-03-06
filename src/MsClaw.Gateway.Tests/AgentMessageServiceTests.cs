@@ -11,7 +11,7 @@ public class AgentMessageServiceTests
     public async Task SendAsync_AcquiredGate_ReleasesGateAfterStreamCompletes()
     {
         var gate = new StubConcurrencyGate();
-        ISessionMap sessionMap = new CallerRegistry();
+        await using var pool = new SessionPool();
         var session = new StubGatewaySession("session-1");
         session.SendAsyncHandler = static stubSession =>
         {
@@ -36,14 +36,14 @@ public class AgentMessageServiceTests
             CreateSessionResult = session
         };
         var hostedService = new StubGatewayHostedService { SystemMessage = "system message" };
-        var sut = new AgentMessageService(gate, sessionMap, client, hostedService);
+        var sut = new AgentMessageService(gate, pool, client, hostedService);
 
         var results = await ReadAllAsync(sut.SendAsync("caller-1", "hello", CancellationToken.None));
 
         Assert.Single(gate.TryAcquireCallerKeys, "caller-1");
         Assert.Single(gate.ReleaseCallerKeys, "caller-1");
         Assert.Equal("hello", session.LastPrompt);
-        Assert.True(session.Disposed);
+        Assert.False(session.Disposed);
         Assert.Collection(
             results,
             sessionEvent => Assert.IsType<AssistantMessageDeltaEvent>(sessionEvent),
@@ -54,10 +54,10 @@ public class AgentMessageServiceTests
     public async Task SendAsync_GateBusy_ThrowsInvalidOperationException()
     {
         var gate = new StubConcurrencyGate { AcquireResult = false };
-        ISessionMap sessionMap = new CallerRegistry();
+        await using var pool = new SessionPool();
         await using var client = new StubGatewayClient();
         var hostedService = new StubGatewayHostedService { SystemMessage = "system message" };
-        var sut = new AgentMessageService(gate, sessionMap, client, hostedService);
+        var sut = new AgentMessageService(gate, pool, client, hostedService);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
             await ReadAllAsync(sut.SendAsync("caller-1", "hello", CancellationToken.None)));
@@ -68,10 +68,10 @@ public class AgentMessageServiceTests
     }
 
     [Fact]
-    public async Task SendAsync_UnknownCaller_CreatesSessionAndStoresSessionId()
+    public async Task SendAsync_UnknownCaller_CreatesSessionViaPool()
     {
         var gate = new StubConcurrencyGate();
-        ISessionMap sessionMap = new CallerRegistry();
+        await using var pool = new SessionPool();
         var session = new StubGatewaySession("session-created");
         session.SendAsyncHandler = static stubSession =>
         {
@@ -88,24 +88,23 @@ public class AgentMessageServiceTests
             CreateSessionResult = session
         };
         var hostedService = new StubGatewayHostedService { SystemMessage = "system message" };
-        var sut = new AgentMessageService(gate, sessionMap, client, hostedService);
+        var sut = new AgentMessageService(gate, pool, client, hostedService);
 
         _ = await ReadAllAsync(sut.SendAsync("caller-1", "hello", CancellationToken.None));
 
         Assert.Equal(1, client.CreateSessionCallCount);
-        Assert.Equal(0, client.ResumeSessionCallCount);
-        Assert.Equal("session-created", sessionMap.GetSessionId("caller-1"));
+        Assert.Same(session, pool.TryGet("caller-1"));
+        Assert.False(session.Disposed);
         var sessionConfig = Assert.IsType<SessionConfig>(client.LastCreateSessionConfig);
         var systemMessage = Assert.IsType<SystemMessageConfig>(sessionConfig.SystemMessage);
         Assert.Equal("system message", systemMessage.Content);
     }
 
     [Fact]
-    public async Task SendAsync_KnownCaller_ResumesExistingSession()
+    public async Task SendAsync_KnownCaller_ReusesPooledSession()
     {
         var gate = new StubConcurrencyGate();
-        ISessionMap sessionMap = new CallerRegistry();
-        sessionMap.SetSessionId("caller-1", "session-existing");
+        await using var pool = new SessionPool();
         var session = new StubGatewaySession("session-existing");
         session.SendAsyncHandler = static stubSession =>
         {
@@ -117,18 +116,18 @@ public class AgentMessageServiceTests
             return Task.CompletedTask;
         };
 
-        await using var client = new StubGatewayClient
-        {
-            ResumeSessionResult = session
-        };
+        // Pre-populate the pool with the session
+        _ = await pool.GetOrCreateAsync("caller-1", (cancellationToken) => Task.FromResult<IGatewaySession>(session));
+        await using var client = new StubGatewayClient();
         var hostedService = new StubGatewayHostedService { SystemMessage = "system message" };
-        var sut = new AgentMessageService(gate, sessionMap, client, hostedService);
+        var sut = new AgentMessageService(gate, pool, client, hostedService);
 
         _ = await ReadAllAsync(sut.SendAsync("caller-1", "hello", CancellationToken.None));
 
         Assert.Equal(0, client.CreateSessionCallCount);
-        Assert.Equal(1, client.ResumeSessionCallCount);
-        Assert.Equal("session-existing", client.LastResumedSessionId);
+        Assert.Equal(0, client.ResumeSessionCallCount);
+        Assert.Same(session, pool.TryGet("caller-1"));
+        Assert.Equal("hello", session.LastPrompt);
     }
 
     private static async Task<List<SessionEvent>> ReadAllAsync(IAsyncEnumerable<SessionEvent> events)

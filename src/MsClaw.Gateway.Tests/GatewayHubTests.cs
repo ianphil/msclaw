@@ -21,7 +21,7 @@ public class GatewayHubTests
     public async Task SendMessage_ConnectionHasNoSession_DelegatesUsingConnectionId()
     {
         var gate = new StubConcurrencyGate();
-        ISessionMap sessionMap = new CallerRegistry();
+        await using var pool = new SessionPool();
         var session = new StubGatewaySession("session-1");
         session.SendAsyncHandler = static stubSession =>
         {
@@ -37,8 +37,8 @@ public class GatewayHubTests
         {
             CreateSessionResult = session
         };
-        var messageService = new AgentMessageService(gate, sessionMap, client, new StubGatewayHostedService { SystemMessage = "system" });
-        var sut = new GatewayHub(messageService, client, sessionMap)
+        var messageService = new AgentMessageService(gate, pool, client, new StubGatewayHostedService { SystemMessage = "system" });
+        var sut = new GatewayHub(messageService, pool)
         {
             Context = new StubHubCallerContext("connection-1")
         };
@@ -52,59 +52,29 @@ public class GatewayHubTests
     }
 
     [Fact]
-    public async Task CreateSession_ClientCreatesSession_ReturnsSessionId()
+    public async Task ListSessions_ReturnsPooledCallerSessionPairs()
     {
-        var sessionMap = new CallerRegistry();
-        await using var client = new StubGatewayClient
-        {
-            CreateSessionResult = new StubGatewaySession("session-created")
-        };
-        var sut = new GatewayHub(
-            new AgentMessageService(new StubConcurrencyGate(), sessionMap, client, new StubGatewayHostedService { SystemMessage = "system" }),
-            client,
-            sessionMap)
-        {
-            Context = new StubHubCallerContext("connection-1")
-        };
+        await using var pool = new SessionPool();
+        _ = await pool.GetOrCreateAsync("caller-1", (cancellationToken) => Task.FromResult<IGatewaySession>(new StubGatewaySession("session-1")));
+        _ = await pool.GetOrCreateAsync("caller-2", (cancellationToken) => Task.FromResult<IGatewaySession>(new StubGatewaySession("session-2")));
 
-        var sessionId = await sut.CreateSession(CancellationToken.None);
-
-        Assert.Equal("session-created", sessionId);
-        Assert.Equal("session-created", sessionMap.GetSessionId("connection-1"));
-    }
-
-    [Fact]
-    public async Task ListSessions_ClientReturnsSessions_ReturnsMetadata()
-    {
-        var expectedSessions = new List<SessionMetadata>
-        {
-            new() { SessionId = "session-1", Summary = "First session" }
-        };
-
-        await using var client = new StubGatewayClient
-        {
-            ListedSessions = expectedSessions
-        };
-        var sessionMap = new CallerRegistry();
-        var sut = new GatewayHub(
-            new AgentMessageService(new StubConcurrencyGate(), sessionMap, client, new StubGatewayHostedService { SystemMessage = "system" }),
-            client,
-            sessionMap)
+        var gate = new StubConcurrencyGate();
+        await using var client = new StubGatewayClient();
+        var messageService = new AgentMessageService(gate, pool, client, new StubGatewayHostedService { SystemMessage = "system" });
+        var sut = new GatewayHub(messageService, pool)
         {
             Context = new StubHubCallerContext("connection-1")
         };
 
         var sessions = await sut.ListSessions(CancellationToken.None);
 
-        Assert.Single(sessions);
-        Assert.Equal("session-1", sessions[0].SessionId);
+        Assert.Equal(2, sessions.Count);
     }
 
     [Fact]
-    public async Task GetHistory_CallerHasMappedSession_ReturnsSessionEvents()
+    public async Task GetHistory_CallerHasPooledSession_ReturnsSessionEvents()
     {
-        var sessionMap = new CallerRegistry();
-        sessionMap.SetSessionId("connection-1", "session-1");
+        await using var pool = new SessionPool();
         var history = new List<SessionEvent>
         {
             new UserMessageEvent
@@ -115,18 +85,16 @@ public class GatewayHubTests
                 }
             }
         };
-
-        await using var client = new StubGatewayClient
+        var session = new StubGatewaySession("session-1")
         {
-            ResumeSessionResult = new StubGatewaySession("session-1")
-            {
-                History = history
-            }
+            History = history
         };
-        var sut = new GatewayHub(
-            new AgentMessageService(new StubConcurrencyGate(), sessionMap, client, new StubGatewayHostedService { SystemMessage = "system" }),
-            client,
-            sessionMap)
+        _ = await pool.GetOrCreateAsync("connection-1", (cancellationToken) => Task.FromResult<IGatewaySession>(session));
+
+        var gate = new StubConcurrencyGate();
+        await using var client = new StubGatewayClient();
+        var messageService = new AgentMessageService(gate, pool, client, new StubGatewayHostedService { SystemMessage = "system" });
+        var sut = new GatewayHub(messageService, pool)
         {
             Context = new StubHubCallerContext("connection-1")
         };
@@ -135,23 +103,20 @@ public class GatewayHubTests
 
         Assert.Single(results);
         Assert.IsType<UserMessageEvent>(results[0]);
-        Assert.Equal("session-1", client.LastResumedSessionId);
+        Assert.Equal(0, client.ResumeSessionCallCount);
     }
 
     [Fact]
-    public async Task AbortResponse_CallerHasMappedSession_AbortsSession()
+    public async Task AbortResponse_CallerHasPooledSession_AbortsSession()
     {
-        var sessionMap = new CallerRegistry();
-        sessionMap.SetSessionId("connection-1", "session-1");
+        await using var pool = new SessionPool();
         var session = new StubGatewaySession("session-1");
-        await using var client = new StubGatewayClient
-        {
-            ResumeSessionResult = session
-        };
-        var sut = new GatewayHub(
-            new AgentMessageService(new StubConcurrencyGate(), sessionMap, client, new StubGatewayHostedService { SystemMessage = "system" }),
-            client,
-            sessionMap)
+        _ = await pool.GetOrCreateAsync("connection-1", (cancellationToken) => Task.FromResult<IGatewaySession>(session));
+
+        var gate = new StubConcurrencyGate();
+        await using var client = new StubGatewayClient();
+        var messageService = new AgentMessageService(gate, pool, client, new StubGatewayHostedService { SystemMessage = "system" });
+        var sut = new GatewayHub(messageService, pool)
         {
             Context = new StubHubCallerContext("connection-1")
         };
@@ -159,7 +124,28 @@ public class GatewayHubTests
         await sut.AbortResponse(CancellationToken.None);
 
         Assert.True(session.AbortCalled);
-        Assert.Equal("session-1", client.LastResumedSessionId);
+        Assert.Equal(0, client.ResumeSessionCallCount);
+    }
+
+    [Fact]
+    public async Task OnDisconnectedAsync_RemovesCallerSessionFromPool()
+    {
+        await using var pool = new SessionPool();
+        var session = new StubGatewaySession("session-1");
+        _ = await pool.GetOrCreateAsync("connection-1", (cancellationToken) => Task.FromResult<IGatewaySession>(session));
+
+        var gate = new StubConcurrencyGate();
+        await using var client = new StubGatewayClient();
+        var messageService = new AgentMessageService(gate, pool, client, new StubGatewayHostedService { SystemMessage = "system" });
+        var sut = new GatewayHub(messageService, pool)
+        {
+            Context = new StubHubCallerContext("connection-1")
+        };
+
+        await sut.OnDisconnectedAsync(null);
+
+        Assert.Null(pool.TryGet("connection-1"));
+        Assert.True(session.Disposed);
     }
 
     private static async Task<List<SessionEvent>> ReadAllAsync(IAsyncEnumerable<SessionEvent> events)
@@ -200,7 +186,7 @@ public class GatewayHubTests
 
         public IReadOnlyList<SessionMetadata> ListedSessions { get; set; } = [];
 
-        public string? LastResumedSessionId { get; private set; }
+        public int ResumeSessionCallCount { get; private set; }
 
         public Task StartAsync(CancellationToken cancellationToken = default)
         {
@@ -214,7 +200,7 @@ public class GatewayHubTests
 
         public Task<IGatewaySession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null, CancellationToken cancellationToken = default)
         {
-            LastResumedSessionId = sessionId;
+            ResumeSessionCallCount++;
 
             return Task.FromResult<IGatewaySession>(ResumeSessionResult ?? new StubGatewaySession(sessionId));
         }
@@ -246,6 +232,8 @@ public class GatewayHubTests
         public string? LastPrompt { get; private set; }
 
         public bool AbortCalled { get; private set; }
+
+        public bool Disposed { get; private set; }
 
         public string SessionId { get; } = sessionId;
 
@@ -279,6 +267,8 @@ public class GatewayHubTests
 
         public ValueTask DisposeAsync()
         {
+            Disposed = true;
+
             return ValueTask.CompletedTask;
         }
 

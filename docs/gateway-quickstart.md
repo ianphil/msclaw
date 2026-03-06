@@ -49,15 +49,17 @@ Set-Alias msclaw ~/src/msclaw/src/MsClaw.Gateway/bin/Debug/net10.0/msclaw.exe
 Create a disposable mind directory with the required structure (`SOUL.md`, `.working-memory/`, etc.):
 
 ```bash
-msclaw mind scaffold ./test-mind
+msclaw mind scaffold ./my-mind
 ```
 
 Expected output: a success message and the path to the new mind. Verify the structure:
 
 ```bash
-ls ./test-mind
+ls ./my-mind
 # SOUL.md  .working-memory/
 ```
+
+> **Already have a mind?** If you have an existing mind directory (e.g., `~/src/ernist` or `~/src/austin`), skip scaffolding and jump straight to Step 2 with `--mind` pointed at it.
 
 ---
 
@@ -66,7 +68,7 @@ ls ./test-mind
 Check that the scaffolded mind has all the required pieces:
 
 ```bash
-msclaw mind validate ./test-mind
+msclaw mind validate ./my-mind
 ```
 
 You should see a tree of results — green **Found** entries for `SOUL.md` and `.working-memory/`. If something is missing, the command prints red **Error** entries and exits with code `1`.
@@ -74,14 +76,14 @@ You should see a tree of results — green **Found** entries for `SOUL.md` and `
 Try breaking it on purpose:
 
 ```bash
-rm ./test-mind/SOUL.md
-msclaw mind validate ./test-mind   # expect errors
+rm ./my-mind/SOUL.md
+msclaw mind validate ./my-mind   # expect errors
 ```
 
 Re-scaffold before continuing:
 
 ```bash
-msclaw mind scaffold ./test-mind
+msclaw mind scaffold ./my-mind
 ```
 
 ---
@@ -91,7 +93,15 @@ msclaw mind scaffold ./test-mind
 Point the gateway at the mind you just created:
 
 ```bash
-msclaw start --mind ./test-mind
+msclaw start --mind ./my-mind
+```
+
+Or use an existing mind:
+
+```bash
+# Use ernist or austin if you already have a bootstrapped mind
+msclaw start --mind ~/src/ernist
+msclaw start --mind ~/src/austin
 ```
 
 The gateway:
