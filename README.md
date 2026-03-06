@@ -1,16 +1,34 @@
-# MsClaw.Core
+# MsClaw
 
-A .NET class library for building AI agents with persistent personalities. Powered by the [GitHub Copilot SDK](https://www.nuget.org/packages/GitHub.Copilot.SDK).
+A .NET toolkit for building AI agents with persistent personalities. Powered by the [GitHub Copilot SDK](https://www.nuget.org/packages/GitHub.Copilot.SDK).
 
-Scaffold a **mind** — a directory that defines who your agent is — and get a configured `CopilotClient` pointed at it. That's it. No web server, no framework, no opinions about how you talk to your agent.
+**MsClaw.Core** — a class library to scaffold minds and create configured Copilot SDK clients.
+**MsClaw (global tool)** — a CLI gateway that hosts a mind as a running service.
 
 ## Install
+
+### Global Tool
+
+```bash
+dotnet tool install -g MsClaw
+msclaw --help
+```
+
+### Library
 
 ```powershell
 dotnet add package MsClaw.Core
 ```
 
-## Usage
+## Quick Start (CLI)
+
+```bash
+# Scaffold a new mind and start the gateway
+msclaw mind scaffold /path/to/my-agent
+msclaw start --mind /path/to/my-agent
+```
+
+## Quick Start (Library)
 
 ```csharp
 using MsClaw.Core;
@@ -48,7 +66,17 @@ A mind is a directory that defines who your agent is and what it remembers:
 - **`.working-memory/`** — Persistent memory the agent reads and writes across sessions
 - **`.github/agents/`** — Agent instruction files
 
-## API
+## CLI Commands
+
+```
+msclaw start --mind <path>      Start the gateway daemon
+msclaw mind scaffold <path>     Scaffold a new mind directory
+msclaw mind validate <path>     Validate a mind has required files
+msclaw --version                Print version
+msclaw --help                   Usage info
+```
+
+## API (MsClaw.Core)
 
 | Type | What it does |
 |------|-------------|
