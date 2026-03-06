@@ -53,7 +53,9 @@
     </aside>
 
     <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
     <script>
+        marked.use({ breaks: true, gfm: true });
         const conversation = document.getElementById("conversation");
         const activityLog = document.getElementById("activity-log");
         const promptForm = document.getElementById("prompt-form");
@@ -244,7 +246,7 @@
             }
 
             if (eventType === "assistant.message" && typeof fullContent === "string" && fullContent.length > 0) {
-                activeAssistantMessage.textContent = fullContent;
+                activeAssistantMessage.innerHTML = marked.parse(fullContent);
                 scrollConversationToTop();
                 return;
             }

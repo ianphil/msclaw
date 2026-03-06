@@ -235,10 +235,13 @@ textarea {
 .bubble-content {
     padding: 0.625rem 0.875rem;
     border-radius: 0.875rem;
-    white-space: pre-wrap;
     word-break: break-word;
     line-height: 1.55;
     font-size: 0.875rem;
+}
+
+.bubble-user .bubble-content {
+    white-space: pre-wrap;
 }
 
 .bubble-assistant .bubble-content {
@@ -279,6 +282,80 @@ textarea {
 .bubble-user .bubble-content {
     background: var(--user-bg);
     border-bottom-right-radius: 0.25rem;
+}
+
+/* ─── Rendered markdown in agent bubbles ─── */
+
+.bubble-assistant .bubble-content p {
+    margin: 0 0 0.5em;
+}
+
+.bubble-assistant .bubble-content p:last-child {
+    margin-bottom: 0;
+}
+
+.bubble-assistant .bubble-content ol,
+.bubble-assistant .bubble-content ul {
+    margin: 0.25em 0 0.5em;
+    padding-left: 1.5em;
+}
+
+.bubble-assistant .bubble-content li {
+    margin-bottom: 0.2em;
+}
+
+.bubble-assistant .bubble-content strong {
+    color: #fff;
+}
+
+.bubble-assistant .bubble-content code {
+    font-family: var(--mono);
+    font-size: 0.8125rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.15em 0.35em;
+    border-radius: 0.25rem;
+}
+
+.bubble-assistant .bubble-content pre {
+    margin: 0.5em 0;
+    padding: 0.625rem 0.75rem;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 0.375rem;
+    overflow-x: auto;
+}
+
+.bubble-assistant .bubble-content pre code {
+    background: none;
+    padding: 0;
+}
+
+.bubble-assistant .bubble-content h1,
+.bubble-assistant .bubble-content h2,
+.bubble-assistant .bubble-content h3 {
+    margin: 0.75em 0 0.25em;
+    font-size: 0.9375rem;
+}
+
+.bubble-assistant .bubble-content h1:first-child,
+.bubble-assistant .bubble-content h2:first-child,
+.bubble-assistant .bubble-content h3:first-child {
+    margin-top: 0;
+}
+
+.bubble-assistant .bubble-content a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.bubble-assistant .bubble-content a:hover {
+    text-decoration: underline;
+}
+
+.bubble-assistant .bubble-content blockquote {
+    margin: 0.5em 0;
+    padding-left: 0.75em;
+    border-left: 3px solid rgba(255, 255, 255, 0.15);
+    color: var(--text-secondary);
 }
 
 /* ─── Scroll anchor ─── */
