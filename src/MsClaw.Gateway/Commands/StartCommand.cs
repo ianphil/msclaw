@@ -50,6 +50,7 @@ public static class StartCommand
         services.AddSingleton<IConcurrencyGate>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
         services.AddSingleton<ISessionMap>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
         services.AddSingleton<GatewayHostedService>();
+        services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<AgentMessageService>();
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());

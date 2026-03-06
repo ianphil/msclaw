@@ -10,14 +10,14 @@ namespace MsClaw.Gateway.Tests;
 public class StartCommandDiTests
 {
     [Fact]
-    public void ConfigureServices_RegistersCoreServicesAndHostedService()
+    public async Task ConfigureServices_RegistersCoreServicesAndHostedService()
     {
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
         StartCommand.ConfigureServices(services, options);
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         Assert.NotNull(provider.GetService<IMindValidator>());
         Assert.NotNull(provider.GetService<IIdentityLoader>());
         Assert.NotNull(provider.GetService<IMindScaffold>());
@@ -25,14 +25,14 @@ public class StartCommandDiTests
     }
 
     [Fact]
-    public void ConfigureServices_RegistersConcurrencyGateAsSingleton()
+    public async Task ConfigureServices_RegistersConcurrencyGateAsSingleton()
     {
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
         StartCommand.ConfigureServices(services, options);
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var first = provider.GetRequiredService<IConcurrencyGate>();
         var second = provider.GetRequiredService<IConcurrencyGate>();
 
@@ -40,14 +40,14 @@ public class StartCommandDiTests
     }
 
     [Fact]
-    public void ConfigureServices_RegistersSessionMapAsSameCallerRegistryInstance()
+    public async Task ConfigureServices_RegistersSessionMapAsSameCallerRegistryInstance()
     {
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
         StartCommand.ConfigureServices(services, options);
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
         var gate = provider.GetRequiredService<IConcurrencyGate>();
         var sessionMap = provider.GetRequiredService<ISessionMap>();
 
@@ -55,14 +55,14 @@ public class StartCommandDiTests
     }
 
     [Fact]
-    public void ConfigureServices_RegistersAgentMessageService()
+    public async Task ConfigureServices_RegistersAgentMessageService()
     {
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
         StartCommand.ConfigureServices(services, options);
 
-        using var provider = services.BuildServiceProvider();
+        await using var provider = services.BuildServiceProvider();
 
         Assert.NotNull(provider.GetService<AgentMessageService>());
     }

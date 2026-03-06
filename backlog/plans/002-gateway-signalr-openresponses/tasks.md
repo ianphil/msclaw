@@ -76,32 +76,32 @@ Phase 1 (Coordination) ──► Phase 2 (Hub) ──► Phase 5 (Chat UI)
 ## Phase 2: SignalR Hub
 
 ### SessionEventBridge
-- [ ] T021 [TEST] Write test: Bridge yields SDK events written by push callback as IAsyncEnumerable
-- [ ] T022 [TEST] Write test: Bridge completes enumerable when SessionIdleEvent fires
-- [ ] T023 [TEST] Write test: Bridge completes enumerable when CancellationToken is cancelled
-- [ ] T024 [IMPL] Implement SessionEventBridge using Channel<SessionEvent> (push callback writes, reader yields)
+- [x] T021 [TEST] Write test: Bridge yields SDK events written by push callback as IAsyncEnumerable
+- [x] T022 [TEST] Write test: Bridge completes enumerable when SessionIdleEvent fires
+- [x] T023 [TEST] Write test: Bridge completes enumerable when CancellationToken is cancelled
+- [x] T024 [IMPL] Implement SessionEventBridge using Channel<SessionEvent> (push callback writes, reader yields)
 
 ### AgentMessageService
-- [ ] T025 [TEST] Write test: SendAsync acquires IConcurrencyGate and releases after stream completes
-- [ ] T026 [TEST] Write test: SendAsync throws when IConcurrencyGate.TryAcquire returns false
-- [ ] T027 [TEST] Write test: SendAsync creates new session via IGatewayClient when no session exists for caller
-- [ ] T028 [TEST] Write test: SendAsync resumes existing session via IGatewayClient when session exists for caller
-- [ ] T029 [IMPL] Implement AgentMessageService orchestrating gate → session → bridge → yield SDK events → release
+- [x] T025 [TEST] Write test: SendAsync acquires IConcurrencyGate and releases after stream completes
+- [x] T026 [TEST] Write test: SendAsync throws when IConcurrencyGate.TryAcquire returns false
+- [x] T027 [TEST] Write test: SendAsync creates new session via IGatewayClient when no session exists for caller
+- [x] T028 [TEST] Write test: SendAsync resumes existing session via IGatewayClient when session exists for caller
+- [x] T029 [IMPL] Implement AgentMessageService orchestrating gate → session → bridge → yield SDK events → release
 
 ### IGatewayHubClient
-- [ ] T030 [IMPL] Define IGatewayHubClient interface (ReceiveEvent, ReceivePresence)
+- [x] T030 [IMPL] Define IGatewayHubClient interface (ReceiveEvent, ReceivePresence)
 
 ### GatewayHub — Thin Routing Layer
-- [ ] T031 [TEST] Write test: SendMessage delegates to AgentMessageService.SendAsync with Context.ConnectionId as caller key
-- [ ] T032 [IMPL] Implement GatewayHub extending Hub<IGatewayHubClient>, injecting AgentMessageService + IGatewayClient + ISessionMap
-- [ ] T033 [TEST] Write test: CreateSession delegates to IGatewayClient.CreateSessionAsync and returns session ID
-- [ ] T034 [IMPL] Implement CreateSession hub method
-- [ ] T035 [TEST] Write test: ListSessions delegates to IGatewayClient.ListSessionsAsync
-- [ ] T036 [IMPL] Implement ListSessions hub method
-- [ ] T037 [TEST] Write test: GetHistory resolves caller's session from ISessionMap and delegates to IGatewaySession.GetMessagesAsync
-- [ ] T038 [IMPL] Implement GetHistory hub method
-- [ ] T039 [TEST] Write test: AbortResponse resolves caller's session and delegates to IGatewaySession.AbortAsync
-- [ ] T040 [IMPL] Implement AbortResponse hub method
+- [x] T031 [TEST] Write test: SendMessage delegates to AgentMessageService.SendAsync with Context.ConnectionId as caller key
+- [x] T032 [IMPL] Implement GatewayHub extending Hub<IGatewayHubClient>, injecting AgentMessageService + IGatewayClient + ISessionMap
+- [x] T033 [TEST] Write test: CreateSession delegates to IGatewayClient.CreateSessionAsync and returns session ID
+- [x] T034 [IMPL] Implement CreateSession hub method
+- [x] T035 [TEST] Write test: ListSessions delegates to IGatewayClient.ListSessionsAsync
+- [x] T036 [IMPL] Implement ListSessions hub method
+- [x] T037 [TEST] Write test: GetHistory resolves caller's session from ISessionMap and delegates to IGatewaySession.GetMessagesAsync
+- [x] T038 [IMPL] Implement GetHistory hub method
+- [x] T039 [TEST] Write test: AbortResponse resolves caller's session and delegates to IGatewaySession.AbortAsync
+- [x] T040 [IMPL] Implement AbortResponse hub method
 
 ## Phase 3: Health Probes
 
