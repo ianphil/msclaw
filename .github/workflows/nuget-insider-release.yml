@@ -36,7 +36,7 @@ jobs:
       - name: Pack
         run: |
           dotnet pack src/MsClaw.Core/MsClaw.Core.csproj -c Release -o ./nupkg --no-build -p:Version=${{ steps.version.outputs.version }}
-          dotnet pack src/MsClaw.Gateway/MsClaw.Gateway.csproj -c Release -o ./nupkg --no-build -p:Version=${{ steps.version.outputs.version }}
+          dotnet pack src/MsClaw.Gateway/MsClaw.Gateway.csproj -c Release -o ./nupkg -p:Version=${{ steps.version.outputs.version }}
 
       - name: Push to GitHub Packages
         run: dotnet nuget push ./nupkg/*.nupkg --api-key ${{ secrets.GITHUB_TOKEN }} --source https://nuget.pkg.github.com/ianphil/index.json --skip-duplicate
