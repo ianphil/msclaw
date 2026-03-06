@@ -228,47 +228,30 @@
         function handleSessionEvent(sessionEvent) {
             const eventType = readValue(sessionEvent, "type", "Type") ?? "";
             const data = sessionEvent?.data ?? sessionEvent?.Data ?? {};
-            const deltaContent = readValue(data, "deltaContent", "DeltaContent");
             const fullContent = readValue(data, "content", "Content");
-            const toolName = readValue(data, "toolName", "ToolName", "name", "Name");
             const message = readValue(data, "message", "Message");
             const errorType = readValue(data, "errorType", "ErrorType");
 
-            const isReasoning = eventType.includes("reasoning");
-            const isMessage = eventType.includes("message");
-            const isAssistantContent = isMessage || (!isReasoning && !eventType);
-
-            const isDelta = typeof deltaContent === "string" && deltaContent.length > 0;
             const isNoise = eventType === "session.idle"
                 || eventType === "pending_messages.modified"
                 || eventType === "session.usage_info"
                 || eventType === "assistant.usage"
-                || eventType === "assistant.streaming_delta";
+                || eventType === "assistant.streaming_delta"
+                || eventType.includes("delta");
 
-            if (!isDelta && !isNoise) {
+            if (!isNoise) {
                 appendActivity(eventType || "event", "info", sessionEvent);
             }
 
-            if (isDelta) {
-                if (isAssistantContent) {
-                    activeAssistantMessage.textContent += deltaContent;
-                    scrollConversationToTop();
-                }
+            if (eventType === "assistant.message" && typeof fullContent === "string" && fullContent.length > 0) {
+                activeAssistantMessage.textContent = fullContent;
+                scrollConversationToTop();
                 return;
             }
-
-            if (typeof fullContent === "string" && fullContent.length > 0) {
-                if (isAssistantContent) {
-                    activeAssistantMessage.textContent = fullContent;
-                    scrollConversationToTop();
-                }
-                return;
-            }
-
-            if (typeof toolName === "string" && toolName.length > 0) return;
 
             if (typeof message === "string" && message.length > 0 && typeof errorType === "string") {
-                if (activeAssistantMessage && !activeAssistantMessage.textContent.trim()) {
+                appendActivity(`Runtime error: ${message}`, "error");
+                if (activeAssistantMessage) {
                     activeAssistantMessage.textContent = message;
                 }
             }
@@ -301,7 +284,12 @@
 
             const content = document.createElement("div");
             content.className = "bubble-content";
-            content.textContent = text;
+
+            if (role === "assistant" && !text) {
+                content.innerHTML = '<span class="typing-indicator"><span></span><span></span><span></span></span>';
+            } else {
+                content.textContent = text;
+            }
 
             bubble.appendChild(content);
             conversation.prepend(bubble);
