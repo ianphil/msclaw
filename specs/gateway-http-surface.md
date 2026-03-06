@@ -12,6 +12,7 @@
 | :--- | :--- | :--- | :--- |
 | 1.0 | 2026-03-03 | MsClaw Team | Initial Draft — derived from technical HTTP surface spec |
 | 1.1 | 2026-03-03 | MsClaw Team | Reconciled with Gateway spec — added endpoint paths, health probe 200ms latency, streaming-begin 5s constraint |
+| 1.2 | 2026-03-06 | MsClaw Team | Decision: adopt OpenResponses spec (openresponses.org) for HTTP surface instead of rolling custom OpenAI-compatible endpoints |
 | | | | |
 
 ---
@@ -32,7 +33,7 @@ The MsClaw Gateway provides a real-time SignalR protocol for operators and devic
 
 ### 1.2 Business Value
 
-- **OpenAI SDK compatibility:** Consumers using standard OpenAI client libraries MUST be able to interact with a MsClaw agent without learning a proprietary protocol, lowering the barrier to adoption.
+- **OpenResponses compatibility:** Consumers using any [OpenResponses](https://www.openresponses.org/specification)-compliant client library (including OpenAI SDKs) MUST be able to interact with a MsClaw agent without learning a proprietary protocol, lowering the barrier to adoption. The HTTP surface SHOULD implement the OpenResponses specification rather than a custom OpenAI-compatible layer, gaining vendor-agnostic interoperability with the broader ecosystem (Hugging Face, Anthropic, local models, etc.).
 - **Webhook-driven integrations:** External systems (chat platforms, source control, CI/CD) MUST be able to push events into the agent runtime via standard HTTP callbacks, enabling channel adapters without custom WebSocket clients.
 - **Operational observability:** Infrastructure tooling (load balancers, container orchestrators, monitoring) MUST be able to probe Gateway health and readiness through standard HTTP health endpoints.
 - **Canvas asset delivery:** Node-rendered interactive applications MUST be served over HTTP with scoped, time-limited access control.

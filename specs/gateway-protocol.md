@@ -13,6 +13,7 @@
 | 1.0 | 2026-03-03 | MsClaw Team | Initial Draft — derived from technical protocol spec |
 | 1.1 | 2026-03-03 | MsClaw Team | Reconciled with Gateway spec — aligned transport, scalability, shutdown, streaming; added REQ-019 through REQ-021 |
 | 1.2 | 2026-03-03 | MsClaw Team | Reconciled with Gateway spec — added authorization policy names, pairing specifics (public key, signed challenge), token logging prohibition, agent runtime failure edge case |
+| 1.3 | 2026-03-06 | MsClaw Team | Decision: HTTP surface will adopt OpenResponses spec (openresponses.org) for API consumers; SignalR remains the protocol for real-time UI/node communication |
 | | | | |
 
 ---
@@ -123,7 +124,7 @@ The [OpenClaw project](https://github.com/openclaw/openclaw) solved a similar pr
 *   Inter-node communication (node A invoking node B through the Gateway) is out of scope.
 *   Channel adapters (WhatsApp, Telegram, Discord) are out of scope for the protocol layer — they are a separate concern.
 *   Scheduled/cron-based agent runs are out of scope.
-*   A REST HTTP API alongside the real-time protocol is out of scope for this specification (covered separately in [msclaw-http-surface.md](msclaw-http-surface.md)).
+*   A REST HTTP API alongside the real-time protocol is out of scope for this specification — the HTTP surface will implement the [OpenResponses](https://www.openresponses.org/specification) spec and is covered separately in [gateway-http-surface.md](gateway-http-surface.md).
 *   The specific persistence mechanism for sessions (file-based vs. database) is an implementation detail and out of scope for this product specification.
 
 ## 7. Dependencies & Assumptions
