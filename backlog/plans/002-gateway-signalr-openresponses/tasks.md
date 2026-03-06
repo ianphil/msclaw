@@ -44,34 +44,34 @@ Phase 1 (Coordination) ──► Phase 2 (Hub) ──► Phase 5 (Chat UI)
 ## Phase 1: Coordination Layer
 
 ### IConcurrencyGate — Concurrency Gate
-- [ ] T001 [TEST] Write test: TryAcquire returns true when no active run for caller
-- [ ] T002 [TEST] Write test: TryAcquire returns false when caller already has active run
-- [ ] T003 [TEST] Write test: Release followed by TryAcquire returns true (slot freed)
-- [ ] T004 [TEST] Write test: TryAcquire for different callers succeeds independently
-- [ ] T005 [IMPL] Define IConcurrencyGate interface and implement in CallerRegistry with ConcurrentDictionary<string, SemaphoreSlim>
+- [x] T001 [TEST] Write test: TryAcquire returns true when no active run for caller
+- [x] T002 [TEST] Write test: TryAcquire returns false when caller already has active run
+- [x] T003 [TEST] Write test: Release followed by TryAcquire returns true (slot freed)
+- [x] T004 [TEST] Write test: TryAcquire for different callers succeeds independently
+- [x] T005 [IMPL] Define IConcurrencyGate interface and implement in CallerRegistry with ConcurrentDictionary<string, SemaphoreSlim>
 
 ### ISessionMap — Caller-to-Session Mapping
-- [ ] T006 [TEST] Write test: SetSessionId + GetSessionId round-trips correctly
-- [ ] T007 [TEST] Write test: GetSessionId returns null for unknown caller
-- [ ] T008 [TEST] Write test: ListCallers returns all registered caller-session pairs
-- [ ] T009 [IMPL] Define ISessionMap interface and implement in CallerRegistry with ConcurrentDictionary<string, string>
+- [x] T006 [TEST] Write test: SetSessionId + GetSessionId round-trips correctly
+- [x] T007 [TEST] Write test: GetSessionId returns null for unknown caller
+- [x] T008 [TEST] Write test: ListCallers returns all registered caller-session pairs
+- [x] T009 [IMPL] Define ISessionMap interface and implement in CallerRegistry with ConcurrentDictionary<string, string>
 
 ### IGatewayClient — Session Operations Boundary
-- [ ] T010 [TEST] Write test: CreateSessionAsync returns IGatewaySession with valid SessionId
-- [ ] T011 [TEST] Write test: ResumeSessionAsync returns IGatewaySession for known session ID
-- [ ] T012 [TEST] Write test: ListSessionsAsync returns metadata for created sessions
-- [ ] T013 [IMPL] Extend IGatewayClient interface with CreateSessionAsync, ResumeSessionAsync, ListSessionsAsync, DeleteSessionAsync
-- [ ] T014 [IMPL] Define IGatewaySession interface (SessionId, On, SendAsync, AbortAsync, GetMessagesAsync)
-- [ ] T015 [IMPL] Implement CopilotGatewayClient session methods (delegate to SDK) and CopilotGatewaySession wrapper
+- [x] T010 [TEST] Write test: CreateSessionAsync returns IGatewaySession with valid SessionId
+- [x] T011 [TEST] Write test: ResumeSessionAsync returns IGatewaySession for known session ID
+- [x] T012 [TEST] Write test: ListSessionsAsync returns metadata for created sessions
+- [x] T013 [IMPL] Extend IGatewayClient interface with CreateSessionAsync, ResumeSessionAsync, ListSessionsAsync, DeleteSessionAsync
+- [x] T014 [IMPL] Define IGatewaySession interface (SessionId, On, SendAsync, AbortAsync, GetMessagesAsync)
+- [x] T015 [IMPL] Implement CopilotGatewayClient session methods (delegate to SDK) and CopilotGatewaySession wrapper
 
 ### GatewayHostedService — Expose System Message
-- [ ] T016 [TEST] Write test: GatewayHostedService exposes loaded system message string after StartAsync
-- [ ] T017 [IMPL] Modify GatewayHostedService to capture LoadSystemMessageAsync return value and expose SystemMessage property
+- [x] T016 [TEST] Write test: GatewayHostedService exposes loaded system message string after StartAsync
+- [x] T017 [IMPL] Modify GatewayHostedService to capture LoadSystemMessageAsync return value and expose SystemMessage property
 
 ### DI Wiring
-- [ ] T018 [TEST] Write test: IConcurrencyGate is registered as singleton in DI
-- [ ] T019 [TEST] Write test: ISessionMap is registered as singleton in DI (same CallerRegistry instance)
-- [ ] T020 [IMPL] Register CallerRegistry, IConcurrencyGate, ISessionMap, and AgentMessageService in StartCommand.ConfigureServices
+- [x] T018 [TEST] Write test: IConcurrencyGate is registered as singleton in DI
+- [x] T019 [TEST] Write test: ISessionMap is registered as singleton in DI (same CallerRegistry instance)
+- [x] T020 [IMPL] Register CallerRegistry, IConcurrencyGate, ISessionMap, and AgentMessageService in StartCommand.ConfigureServices
 
 ## Phase 2: SignalR Hub
 

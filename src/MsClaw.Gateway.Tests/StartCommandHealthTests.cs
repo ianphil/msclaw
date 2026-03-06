@@ -61,6 +61,8 @@ public class StartCommandHealthTests
 
     private sealed class StubGatewayHostedService : IGatewayHostedService
     {
+        public string? SystemMessage { get; set; }
+
         public GatewayState State { get; set; }
         public string? Error { get; set; }
         public bool IsReady { get; set; }

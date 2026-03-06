@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Core;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Hubs;
+using MsClaw.Gateway.Services;
 
 namespace MsClaw.Gateway.Commands;
 
@@ -45,8 +46,12 @@ public static class StartCommand
         services.AddSingleton<IIdentityLoader, IdentityLoader>();
         services.AddSingleton<IMindScaffold, MindScaffold>();
         services.AddSingleton<IMindReader>(_ => new MindReader(options.MindPath));
+        services.AddSingleton<CallerRegistry>();
+        services.AddSingleton<IConcurrencyGate>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
+        services.AddSingleton<ISessionMap>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
         services.AddSingleton<GatewayHostedService>();
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
+        services.AddSingleton<AgentMessageService>();
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
     }
 

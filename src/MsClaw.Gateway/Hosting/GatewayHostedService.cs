@@ -1,4 +1,3 @@
-using GitHub.Copilot.SDK;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsClaw.Core;
@@ -31,6 +30,8 @@ public sealed class GatewayHostedService : IGatewayHostedService
 
     public GatewayState State { get; private set; }
 
+    public string? SystemMessage { get; private set; }
+
     public string? Error { get; private set; }
 
     public bool IsReady => State is GatewayState.Ready;
@@ -48,7 +49,7 @@ public sealed class GatewayHostedService : IGatewayHostedService
             return;
         }
 
-        await identityLoader.LoadSystemMessageAsync(options.MindPath, cancellationToken);
+        SystemMessage = await identityLoader.LoadSystemMessageAsync(options.MindPath, cancellationToken);
 
         try
         {
@@ -80,18 +81,5 @@ public sealed class GatewayHostedService : IGatewayHostedService
     private static IGatewayClient CreateGatewayClient(string mindPath)
     {
         return new CopilotGatewayClient(MsClawClientFactory.Create(mindPath));
-    }
-
-    private sealed class CopilotGatewayClient(CopilotClient client) : IGatewayClient
-    {
-        public Task StartAsync(CancellationToken cancellationToken = default)
-        {
-            return client.StartAsync();
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            return client.DisposeAsync();
-        }
     }
 }
