@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "failures": [
-    {
-      "test_name": "Project exists and references required packages",
-      "spec_file": "C:\\src\\msclaw\\specs\\tests\\001-gateway-mvp-plumbing.md"
-    }
-  ]
-}

@@ -13,6 +13,7 @@ msclaw --new-mind /path/to/my-mind
 
 ## Guides
 
+- [Gateway Quickstart](gateway-quickstart.md) — Manual testing walkthrough for the gateway MVP
 - [MsClaw Walkthrough](msclaw-walkthrough.md) — End-to-end overview of how MsClaw works
 - [Extension Developer Guide](extension-developer-guide.md) — Build plugins for MsClaw
 - [Bootstrap Flow (Existing Mind)](bootstrap-mind-flow.md) — What happens when you load a mind
