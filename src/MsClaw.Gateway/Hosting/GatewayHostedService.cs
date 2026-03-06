@@ -5,7 +5,10 @@ using MsClaw.Core;
 
 namespace MsClaw.Gateway.Hosting;
 
-public sealed class GatewayHostedService : IGatewayHostedService
+/// <summary>
+/// Validates the configured mind, starts the gateway client, and exposes gateway runtime services.
+/// </summary>
+public sealed class GatewayHostedService : IGatewayHostedService, IGatewayClient
 {
     private readonly IMindValidator mindValidator;
     private readonly IIdentityLoader identityLoader;
@@ -31,6 +34,8 @@ public sealed class GatewayHostedService : IGatewayHostedService
 
     public GatewayState State { get; private set; }
 
+    public string? SystemMessage { get; private set; }
+
     public string? Error { get; private set; }
 
     public bool IsReady => State is GatewayState.Ready;
@@ -48,7 +53,7 @@ public sealed class GatewayHostedService : IGatewayHostedService
             return;
         }
 
-        await identityLoader.LoadSystemMessageAsync(options.MindPath, cancellationToken);
+        SystemMessage = await identityLoader.LoadSystemMessageAsync(options.MindPath, cancellationToken);
 
         try
         {
@@ -70,11 +75,56 @@ public sealed class GatewayHostedService : IGatewayHostedService
         State = GatewayState.Stopping;
         if (client is not null)
         {
-            await client.DisposeAsync();
-            client = null;
+            await DisposeAsync();
         }
 
         State = GatewayState.Stopped;
+    }
+
+    /// <summary>
+    /// Creates a new session by delegating to the started gateway client.
+    /// </summary>
+    public Task<IGatewaySession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
+    {
+        return GetClientOrThrow().CreateSessionAsync(config, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resumes an existing session by delegating to the started gateway client.
+    /// </summary>
+    public Task<IGatewaySession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null, CancellationToken cancellationToken = default)
+    {
+        return GetClientOrThrow().ResumeSessionAsync(sessionId, config, cancellationToken);
+    }
+
+    /// <summary>
+    /// Lists sessions by delegating to the started gateway client.
+    /// </summary>
+    public Task<IReadOnlyList<SessionMetadata>> ListSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        return GetClientOrThrow().ListSessionsAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Deletes a session by delegating to the started gateway client.
+    /// </summary>
+    public Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    {
+        return GetClientOrThrow().DeleteSessionAsync(sessionId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Disposes the started gateway client if one exists.
+    /// </summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (client is null)
+        {
+            return;
+        }
+
+        await client.DisposeAsync();
+        client = null;
     }
 
     private static IGatewayClient CreateGatewayClient(string mindPath)
@@ -82,16 +132,11 @@ public sealed class GatewayHostedService : IGatewayHostedService
         return new CopilotGatewayClient(MsClawClientFactory.Create(mindPath));
     }
 
-    private sealed class CopilotGatewayClient(CopilotClient client) : IGatewayClient
+    /// <summary>
+    /// Gets the started gateway client or throws when the hosted service is not ready.
+    /// </summary>
+    private IGatewayClient GetClientOrThrow()
     {
-        public Task StartAsync(CancellationToken cancellationToken = default)
-        {
-            return client.StartAsync();
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            return client.DisposeAsync();
-        }
+        return client ?? throw new InvalidOperationException("The gateway client is not available before startup completes.");
     }
 }

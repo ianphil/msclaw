@@ -1,22 +1,24 @@
 # AI Notes — Log
 
-## 2026-03-04
-- sdk-analysis: Copilot SDK covers 17 of 23 agent runtime REQs out of the box (9 direct, 6 thin wrappers, 2 more discovered during source review)
-- sdk-analysis: SDK's ToolsApi.ListAsync() calls "tools.list" RPC — covers REQ-023 (skills discovery) for free
-- sdk-analysis: SDK's SendAndWaitAsync has built-in timeout but does NOT abort the run — thin wrapper needed to call AbortAsync on TimeoutException
-- sdk-analysis: CLI agent harness discovers .github/skills/ automatically when Cwd points to mind root — REQ-013 is free
-- sdk-analysis: SDK tool model is static per session (set at CreateSessionAsync) — RegisterTools is internal. Node-provided tools (REQ-014) require dynamic registry we must build
-- sdk-analysis: SDK ConnectionState is binary (Connected/Error) — no degraded concept. Must build Starting→Ready→Degraded→Stopped state machine
-- sdk-analysis: SDK has zero concurrency control — no per-caller or global throttle. Must build both (REQ-006, REQ-007)
-- mind-model: MindReader.cs removed exit-code error handling from sync process — sync failures now silently succeed
+## 2026-03-06
+- architecture: feature 002 planning keeps Copilot SDK data types flowing through directly while holding service lifecycles behind IGatewayClient and IGatewaySession boundaries.
+- planning: feature 002 artifacts currently disagree on hub boundaries, with plan/contracts using split IConcurrencyGate plus ISessionMap while the spec test draft still expects a direct CopilotClient and ICallerRegistry shape.
+- impl: CopilotGatewayClient was extracted from a private nested class in GatewayHostedService to its own file — the nested class pattern doesn't scale once session operations are added.
+- testing: FakeGatewayClient and FakeGatewaySession stubs are duplicated across GatewayHostedServiceTests and CopilotGatewayClientTests — candidate for a shared TestDoubles file if duplication grows.
+- DI: CallerRegistry is registered as concrete singleton, then forwarded to IConcurrencyGate and ISessionMap via GetRequiredService — this ensures both interfaces resolve to the same instance.
+- streaming: SDK push events bridge cleanly to SignalR streaming via Channel<SessionEvent>, with SessionIdleEvent and SessionErrorEvent serving as natural terminal markers.
+- disposal: registering GatewayHostedService as both hosted service and IGatewayClient means DI consumers must support async disposal semantics in tests and service providers.
 
-## 2026-03-05
-- instructions: SignalR instructions file was missing streaming (IAsyncEnumerable), hub lifecycle events, hub return values, IUserIdProvider, strongly typed IHubContext, and client results patterns
-- design-principle: Added "never rewrite what you've already imported" to copilot-instructions — trace the dependency chain before building custom wrappers
-- gateway-planning: MsClawClientFactory.Create() is static — can't register it as an interface in DI. Hosted service will call it directly and hold the CopilotClient as a managed singleton
-- gateway-planning: System.CommandLine and ASP.NET Core have separate host builder patterns — StartCommand must build WebApplication independently to avoid conflicts
-- gateway-planning: MindValidator returns structured result (Errors/Warnings/Found lists) which maps cleanly to Spectre.Console tree rendering
-- gateway-planning: Quick commands (mind validate, mind scaffold) should use standalone ServiceCollection, not spin up the full ASP.NET Core host
-- spec-tests: Cross-file assertions (e.g. "hub is mapped in StartCommand" but Given references GatewayHub.cs) should be split into separate tests — one per file — so the judge focuses its Given correctly
-- spec-tests: Invoke-SpecTests.ps1 validates target existence before dry-run — expected to fail with [not-implemented] until implementation phase begins
-- system-commandline: System.CommandLine 2.0.3 command wiring uses Command.Add(...) plus Parse(...).Invoke(...) semantics; older AddCommand/AddOption patterns fail in this codebase.
+- health: Split liveness from readiness because startup failures should keep /health green while /health/ready reports hosted-service initialization errors, and minimal API service parameters in route lambdas need [FromServices] to avoid body inference.
+- openresponses: the HTTP surface can reuse AgentMessageService through a thin adapter keyed by request user or TraceIdentifier, so SignalR and /v1/responses share the same session and concurrency behavior.
+- sse: OpenResponses framing works cleanly by treating response.created as synthetic, AssistantMessageDeltaEvent and AssistantMessageEvent as payload frames, and SessionIdleEvent as the terminal [DONE] marker.
+- testing: ASP.NET Core static-file middleware is easiest to unit test behind a separate ConfigurePipeline method with a stub IWebHostEnvironment and logging-enabled ApplicationBuilder.
+- integration-tests: Gateway integration tests avoid WebApplicationFactory by building WebApplication directly with StartCommand.MapEndpoints and stub services — ConfigureWebHostBuilder lacks UseUrls, so use app.Urls.Add("http://127.0.0.1:0") then read IServerAddressesFeature post-start.
+- integration-tests: SDK event data types like AssistantMessageDeltaData and AssistantMessageData have required MessageId property — must be set in test event construction or CS9035 fires.
+- concurrency: SignalR MaximumParallelInvocationsPerClient defaults to 1, serializing hub calls per connection. Integration tests for concurrent rejection are more practical via the HTTP /v1/responses endpoint with matching User fields than through the hub.
+- sdk: CopilotClient requires OnPermissionRequest on both SessionConfig and ResumeSessionConfig — without it, ArgumentException is thrown at runtime. PermissionHandler.ApproveAll is the loopback-gateway default; placed in CopilotGatewayClient (SDK boundary) with ??= so callers can override.
+- sdk: SessionConfig.Streaming must be true for the SDK to emit AssistantMessageDeltaEvent and AssistantMessageEvent with text content; without it only lifecycle events (turn_start, turn_end, session.idle) arrive.
+- sdk-events: Wire events carry a "type" field distinguishing assistant.message.delta from assistant.reasoning.delta — both have deltaContent/content in data but the type field is the only reliable discriminator. UI must filter reasoning events or users see model thinking instead of the response.
+- bootstrap: GENESIS bootstrap design settled — scaffold creates copilot-instructions.md that triggers bootstrap.md (2 questions: character + role), derives SOUL.md/agent file/memory, then deletes bootstrap.md and rewrites copilot-instructions to permanent version. Commit skill ships as embedded resource.
+- embedded-resources: MSBuild embeds .github folder as `..github.` prefix (double dot for leading dot in folder name), and hyphens in folder names become underscores (daily-report → daily_report) but hyphens in filenames are preserved. Use ReadTemplateByResourceName for nested paths.
+- scaffold: Three canonical skills ship with every mind: commit (stage/observe/push), capture (decompose/route/link context), daily-report (ADO+Teams+Calendar+Email morning briefing). All sourced from ianphil/public-notes.

@@ -1,3 +1,4 @@
+using GitHub.Copilot.SDK;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsClaw.Core;
 using MsClaw.Gateway.Hosting;
@@ -74,6 +75,24 @@ public class GatewayHostedServiceTests
     }
 
     [Fact]
+    public async Task StartAsync_ValidMind_ExposesLoadedSystemMessage()
+    {
+        var validator = new StubMindValidator(new MindValidationResult());
+        var identityLoader = new StubIdentityLoader();
+        var options = new GatewayOptions { MindPath = "C:\\mind" };
+        var sut = new GatewayHostedService(
+            validator,
+            identityLoader,
+            options,
+            _ => new FakeGatewayClient(),
+            NullLogger<GatewayHostedService>.Instance);
+
+        await sut.StartAsync(CancellationToken.None);
+
+        Assert.Equal("system message", sut.SystemMessage);
+    }
+
+    [Fact]
     public async Task StopAsync_AfterStart_DisposesClient()
     {
         var validator = new StubMindValidator(new MindValidationResult());
@@ -123,11 +142,68 @@ public class GatewayHostedServiceTests
             return Task.CompletedTask;
         }
 
+        public Task<IGatewaySession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IGatewaySession>(new FakeGatewaySession());
+        }
+
+        public Task<IGatewaySession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IGatewaySession>(new FakeGatewaySession());
+        }
+
+        public Task<IReadOnlyList<SessionMetadata>> ListSessionsAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<SessionMetadata>>([]);
+        }
+
+        public Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
         public ValueTask DisposeAsync()
         {
             Disposed = true;
 
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class FakeGatewaySession : IGatewaySession
+    {
+        public string SessionId => "session-1";
+
+        public IDisposable On(Action<SessionEvent> handler)
+        {
+            return new StubDisposable();
+        }
+
+        public Task SendAsync(MessageOptions options, CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task AbortAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<SessionEvent>> GetMessagesAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<IReadOnlyList<SessionEvent>>([]);
+        }
+
+        public ValueTask DisposeAsync()
+        {
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class StubDisposable : IDisposable
+    {
+        public void Dispose()
+        {
         }
     }
 }

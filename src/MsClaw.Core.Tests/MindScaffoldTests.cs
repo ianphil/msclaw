@@ -22,6 +22,10 @@ public class MindScaffoldTests
 
         Assert.True(Directory.Exists(Path.Combine(mindRoot, ".github", "agents")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, ".github", "skills")));
+        Assert.True(File.Exists(Path.Combine(mindRoot, ".github", "copilot-instructions.md")));
+        Assert.True(File.Exists(Path.Combine(mindRoot, ".github", "skills", "commit", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(mindRoot, ".github", "skills", "capture", "SKILL.md")));
+        Assert.True(File.Exists(Path.Combine(mindRoot, ".github", "skills", "daily-report", "SKILL.md")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "domains")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "initiatives")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "expertise")));
@@ -53,6 +57,61 @@ public class MindScaffoldTests
         var actual = File.ReadAllText(Path.Combine(mindRoot, "bootstrap.md"));
         var expected = ReadTemplate("bootstrap.md");
         Assert.Equal(expected, actual);
+    }
+
+    [Fact]
+    public void Scaffold_WritesCopilotInstructions_FromEmbeddedResource()
+    {
+        var mindRoot = CreateTempDirectory();
+        var sut = new MindScaffold();
+
+        sut.Scaffold(mindRoot);
+
+        var actual = File.ReadAllText(Path.Combine(mindRoot, ".github", "copilot-instructions.md"));
+        Assert.Contains("bootstrap.md", actual);
+        Assert.Contains("SOUL.md", actual);
+    }
+
+    [Fact]
+    public void Scaffold_WritesCommitSkill_FromEmbeddedResource()
+    {
+        var mindRoot = CreateTempDirectory();
+        var sut = new MindScaffold();
+
+        sut.Scaffold(mindRoot);
+
+        var actual = File.ReadAllText(Path.Combine(mindRoot, ".github", "skills", "commit", "SKILL.md"));
+        Assert.StartsWith("---", actual);
+        Assert.Contains("name: commit", actual);
+        Assert.Contains("git status", actual);
+    }
+
+    [Fact]
+    public void Scaffold_WritesCaptureSkill_FromEmbeddedResource()
+    {
+        var mindRoot = CreateTempDirectory();
+        var sut = new MindScaffold();
+
+        sut.Scaffold(mindRoot);
+
+        var actual = File.ReadAllText(Path.Combine(mindRoot, ".github", "skills", "capture", "SKILL.md"));
+        Assert.StartsWith("---", actual);
+        Assert.Contains("name: capture", actual);
+        Assert.Contains("Mind Normalization", actual);
+    }
+
+    [Fact]
+    public void Scaffold_WritesDailyReportSkill_FromEmbeddedResource()
+    {
+        var mindRoot = CreateTempDirectory();
+        var sut = new MindScaffold();
+
+        sut.Scaffold(mindRoot);
+
+        var actual = File.ReadAllText(Path.Combine(mindRoot, ".github", "skills", "daily-report", "SKILL.md"));
+        Assert.StartsWith("---", actual);
+        Assert.Contains("name: daily-report", actual);
+        Assert.Contains("DAILY REPORT", actual);
     }
 
     [Fact]

@@ -2,11 +2,14 @@ using System.CommandLine;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Core;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Hubs;
+using MsClaw.Gateway.Services;
+using MsClaw.OpenResponses;
 
 namespace MsClaw.Gateway.Commands;
 
@@ -45,22 +48,47 @@ public static class StartCommand
         services.AddSingleton<IIdentityLoader, IdentityLoader>();
         services.AddSingleton<IMindScaffold, MindScaffold>();
         services.AddSingleton<IMindReader>(_ => new MindReader(options.MindPath));
+        services.AddSingleton<CallerRegistry>();
+        services.AddSingleton<IConcurrencyGate>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
+        services.AddSingleton<ISessionMap>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
         services.AddSingleton<GatewayHostedService>();
+        services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
+        services.AddSingleton<AgentMessageService>();
+        services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
     }
 
-    public static IResult BuildHealthResult(IGatewayHostedService hostedService)
+    public static IResult BuildLivenessResult()
+    {
+        return Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK);
+    }
+
+    public static IResult BuildReadinessResult(IGatewayHostedService hostedService)
     {
         return hostedService.IsReady
             ? Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK)
-            : Results.Json(new { status = "Unhealthy", error = hostedService.Error }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            : Results.Json(
+                new { status = "Unhealthy", component = "hosted-service", error = hostedService.Error },
+                statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 
     public static void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/healthz", (IGatewayHostedService hostedService) => BuildHealthResult(hostedService));
+        endpoints.MapGet("/health", () => BuildLivenessResult());
+        endpoints.MapGet("/health/ready", ([FromServices] IGatewayHostedService hostedService) => BuildReadinessResult(hostedService));
         endpoints.MapHub<GatewayHub>("/gateway");
+        endpoints.MapOpenResponses();
+    }
+
+    /// <summary>
+    /// Configures middleware required to serve the gateway's static chat assets.
+    /// Splitting this from endpoint mapping keeps the pipeline testable without starting the full host.
+    /// </summary>
+    public static void ConfigurePipeline(IApplicationBuilder application)
+    {
+        application.UseDefaultFiles();
+        application.UseStaticFiles();
     }
 
     public static async Task<int> ExecuteStartAsync(
@@ -93,10 +121,15 @@ public static class StartCommand
 
     public static async Task<int> RunGatewayAsync(GatewayOptions options, CancellationToken cancellationToken = default)
     {
-        var builder = WebApplication.CreateBuilder();
+        var assemblyDir = Path.GetDirectoryName(typeof(StartCommand).Assembly.Location)!;
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            WebRootPath = Path.Combine(assemblyDir, "wwwroot")
+        });
         builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
         ConfigureServices(builder.Services, options);
         var app = builder.Build();
+        ConfigurePipeline(app);
         MapEndpoints(app);
         await app.RunAsync(cancellationToken);
 
