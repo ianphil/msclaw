@@ -111,7 +111,7 @@ public class StartCommandHealthTests
         var webRootPath = CreateWebRoot(new Dictionary<string, string>
         {
             ["index.html"] = "<html><body>chat</body></html>",
-            ["css\\site.css"] = "body { color: red; }"
+            [Path.Combine("css", "site.css")] = "body { color: red; }"
         });
 
         try
