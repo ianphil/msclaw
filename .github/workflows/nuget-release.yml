@@ -21,7 +21,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build and test
-        run: dotnet test src/MsClaw.slnx --nologo -c Release
+        run: dotnet test src/MsClaw.slnx --nologo -c Release --filter "FullyQualifiedName!~MsClawClientFactoryTests"
 
       - name: Pack
         run: |

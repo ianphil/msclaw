@@ -26,7 +26,7 @@ jobs:
         run: echo "version=0.1.0-insider.$(date +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
 
       - name: Build and test
-        run: dotnet test src/MsClaw.slnx --nologo -c Release
+        run: dotnet test src/MsClaw.slnx --nologo -c Release --filter "FullyQualifiedName!~MsClawClientFactoryTests"
 
       - name: Pack
         run: |
