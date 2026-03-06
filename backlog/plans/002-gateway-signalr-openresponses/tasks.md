@@ -121,46 +121,46 @@ Phase 1 (Coordination) ──► Phase 2 (Hub) ──► Phase 5 (Chat UI)
 ## Phase 4: OpenResponses Library
 
 ### Project Scaffold
-- [ ] T048 [IMPL] Create MsClaw.OpenResponses project (class library, net10.0)
-- [ ] T049 [IMPL] Create MsClaw.OpenResponses.Tests project (xUnit, net10.0)
-- [ ] T050 [IMPL] Add both projects to MsClaw.slnx
+- [x] T048 [IMPL] Create MsClaw.OpenResponses project (class library, net10.0)
+- [x] T049 [IMPL] Create MsClaw.OpenResponses.Tests project (xUnit, net10.0)
+- [x] T050 [IMPL] Add both projects to MsClaw.slnx
 
 ### Request DTO
-- [ ] T051 [TEST] Write test: ResponseRequest deserializes from valid JSON with model, input, stream fields
-- [ ] T052 [TEST] Write test: ResponseRequest validation rejects missing model
-- [ ] T053 [TEST] Write test: ResponseRequest validation rejects empty input
-- [ ] T054 [IMPL] Implement ResponseRequest DTO with validation
+- [x] T051 [TEST] Write test: ResponseRequest deserializes from valid JSON with model, input, stream fields
+- [x] T052 [TEST] Write test: ResponseRequest validation rejects missing model
+- [x] T053 [TEST] Write test: ResponseRequest validation rejects empty input
+- [x] T054 [IMPL] Implement ResponseRequest DTO with validation
 
 ### Response DTOs (genuinely new — no SDK equivalent)
-- [ ] T055 [TEST] Write test: ResponseObject serializes to expected OpenResponses JSON structure
-- [ ] T056 [TEST] Write test: OutputItem and ContentPart serialize correctly
-- [ ] T057 [IMPL] Implement ResponseObject, OutputItem, ContentPart DTOs
+- [x] T055 [TEST] Write test: ResponseObject serializes to expected OpenResponses JSON structure
+- [x] T056 [TEST] Write test: OutputItem and ContentPart serialize correctly
+- [x] T057 [IMPL] Implement ResponseObject, OutputItem, ContentPart DTOs
 
 ### SSE Formatting (SDK event → OpenResponses SSE mapping)
-- [ ] T058 [TEST] Write test: Maps AssistantMessageDeltaEvent → response.output_text.delta SSE event
-- [ ] T059 [TEST] Write test: Maps AssistantMessageEvent → response.output_text.done + response.completed
-- [ ] T060 [TEST] Write test: Maps SessionIdleEvent → terminal [DONE] marker
-- [ ] T061 [TEST] Write test: Maps SessionErrorEvent → response.failed
-- [ ] T062 [IMPL] Implement SDK event → OpenResponses SSE formatter
+- [x] T058 [TEST] Write test: Maps AssistantMessageDeltaEvent → response.output_text.delta SSE event
+- [x] T059 [TEST] Write test: Maps AssistantMessageEvent → response.output_text.done + response.completed
+- [x] T060 [TEST] Write test: Maps SessionIdleEvent → terminal [DONE] marker
+- [x] T061 [TEST] Write test: Maps SessionErrorEvent → response.failed
+- [x] T062 [IMPL] Implement SDK event → OpenResponses SSE formatter
 
 ### Error Responses
-- [ ] T063 [TEST] Write test: Error response includes code, message, and request_id
-- [ ] T064 [IMPL] Implement error response DTOs and helpers
+- [x] T063 [TEST] Write test: Error response includes code, message, and request_id
+- [x] T064 [IMPL] Implement error response DTOs and helpers
 
 ### Middleware
-- [ ] T065 [TEST] Write test: POST /v1/responses with stream:false returns complete ResponseObject
-- [ ] T066 [TEST] Write test: POST /v1/responses with stream:true returns SSE event stream
-- [ ] T067 [TEST] Write test: POST /v1/responses returns 409 when caller has active run
-- [ ] T068 [TEST] Write test: POST /v1/responses returns 400 for malformed request
-- [ ] T069 [IMPL] Implement OpenResponsesMiddleware using AgentMessageService
+- [x] T065 [TEST] Write test: POST /v1/responses with stream:false returns complete ResponseObject
+- [x] T066 [TEST] Write test: POST /v1/responses with stream:true returns SSE event stream
+- [x] T067 [TEST] Write test: POST /v1/responses returns 409 when caller has active run
+- [x] T068 [TEST] Write test: POST /v1/responses returns 400 for malformed request
+- [x] T069 [IMPL] Implement OpenResponsesMiddleware using AgentMessageService
 
 ### Extension Method
-- [ ] T070 [TEST] Write test: MapOpenResponses registers the /v1/responses endpoint
-- [ ] T071 [IMPL] Implement EndpointRouteBuilderExtensions.MapOpenResponses()
+- [x] T070 [TEST] Write test: MapOpenResponses registers the /v1/responses endpoint
+- [x] T071 [IMPL] Implement EndpointRouteBuilderExtensions.MapOpenResponses()
 
 ### Gateway Integration
-- [ ] T072 [IMPL] Add MsClaw.OpenResponses project reference to MsClaw.Gateway.csproj
-- [ ] T073 [IMPL] Call MapOpenResponses() in StartCommand.MapEndpoints
+- [x] T072 [IMPL] Add MsClaw.OpenResponses project reference to MsClaw.Gateway.csproj
+- [x] T073 [IMPL] Call MapOpenResponses() in StartCommand.MapEndpoints
 
 ## Phase 5: Chat UI
 

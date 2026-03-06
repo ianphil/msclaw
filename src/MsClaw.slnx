@@ -4,4 +4,6 @@
   <Project Path="MsClaw.Integration.Tests/MsClaw.Integration.Tests.csproj" />
   <Project Path="MsClaw.Gateway/MsClaw.Gateway.csproj" />
   <Project Path="MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj" />
+  <Project Path="MsClaw.OpenResponses.Tests/MsClaw.OpenResponses.Tests.csproj" />
+  <Project Path="MsClaw.OpenResponses/MsClaw.OpenResponses.csproj" />
 </Solution>

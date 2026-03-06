@@ -80,6 +80,7 @@ public class StartCommandHealthTests
 
         Assert.Contains("/health", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/health/ready", routePatterns, StringComparer.Ordinal);
+        Assert.Contains("/v1/responses", routePatterns, StringComparer.Ordinal);
     }
 
     [Fact]

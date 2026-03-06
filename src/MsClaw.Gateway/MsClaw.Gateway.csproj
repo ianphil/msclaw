@@ -24,6 +24,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MsClaw.Core\MsClaw.Core.csproj" />
+    <ProjectReference Include="..\MsClaw.OpenResponses\MsClaw.OpenResponses.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />

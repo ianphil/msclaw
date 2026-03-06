@@ -9,6 +9,7 @@ using MsClaw.Core;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Hubs;
 using MsClaw.Gateway.Services;
+using MsClaw.OpenResponses;
 
 namespace MsClaw.Gateway.Commands;
 
@@ -54,6 +55,7 @@ public static class StartCommand
         services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<AgentMessageService>();
+        services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
     }
 
@@ -76,6 +78,7 @@ public static class StartCommand
         endpoints.MapGet("/health", () => BuildLivenessResult());
         endpoints.MapGet("/health/ready", ([FromServices] IGatewayHostedService hostedService) => BuildReadinessResult(hostedService));
         endpoints.MapHub<GatewayHub>("/gateway");
+        endpoints.MapOpenResponses();
     }
 
     public static async Task<int> ExecuteStartAsync(
