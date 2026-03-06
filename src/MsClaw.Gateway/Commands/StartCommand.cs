@@ -81,6 +81,16 @@ public static class StartCommand
         endpoints.MapOpenResponses();
     }
 
+    /// <summary>
+    /// Configures middleware required to serve the gateway's static chat assets.
+    /// Splitting this from endpoint mapping keeps the pipeline testable without starting the full host.
+    /// </summary>
+    public static void ConfigurePipeline(IApplicationBuilder application)
+    {
+        application.UseDefaultFiles();
+        application.UseStaticFiles();
+    }
+
     public static async Task<int> ExecuteStartAsync(
         string? mindPath,
         string? newMindPath,
@@ -115,6 +125,7 @@ public static class StartCommand
         builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
         ConfigureServices(builder.Services, options);
         var app = builder.Build();
+        ConfigurePipeline(app);
         MapEndpoints(app);
         await app.RunAsync(cancellationToken);
 

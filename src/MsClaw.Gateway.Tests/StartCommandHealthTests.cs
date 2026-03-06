@@ -1,8 +1,12 @@
 using System.Text;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
 using MsClaw.Gateway.Commands;
 using MsClaw.Gateway.Hosting;
 using Xunit;
@@ -101,6 +105,47 @@ public class StartCommandHealthTests
         Assert.DoesNotContain("/healthz", routePatterns, StringComparer.Ordinal);
     }
 
+    [Fact]
+    public async Task ConfigurePipeline_IncludesDefaultFilesAndStaticFiles()
+    {
+        var webRootPath = CreateWebRoot(new Dictionary<string, string>
+        {
+            ["index.html"] = "<html><body>chat</body></html>",
+            ["css\\site.css"] = "body { color: red; }"
+        });
+
+        try
+        {
+            using var services = new ServiceCollection()
+                .AddLogging()
+                .AddRouting()
+                .AddSingleton<IWebHostEnvironment>(new StubWebHostEnvironment(webRootPath))
+                .BuildServiceProvider();
+            var builder = new ApplicationBuilder(services);
+
+            StartCommand.ConfigurePipeline(builder);
+            builder.Run(static context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status404NotFound;
+
+                return Task.CompletedTask;
+            });
+
+            var application = builder.Build();
+            var rootResponse = await ExecuteRequestAsync(application, "/");
+            var stylesheetResponse = await ExecuteRequestAsync(application, "/css/site.css");
+
+            Assert.Equal(StatusCodes.Status200OK, rootResponse.StatusCode);
+            Assert.Contains("chat", rootResponse.Body, StringComparison.Ordinal);
+            Assert.Equal(StatusCodes.Status200OK, stylesheetResponse.StatusCode);
+            Assert.Contains("color: red", stylesheetResponse.Body, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(webRootPath, recursive: true);
+        }
+    }
+
     private static async Task<(int StatusCode, string Body)> ExecuteResultAsync(IResult result)
     {
         var context = new DefaultHttpContext();
@@ -118,6 +163,42 @@ public class StartCommandHealthTests
         return (context.Response.StatusCode, body);
     }
 
+    private static async Task<(int StatusCode, string Body)> ExecuteRequestAsync(RequestDelegate application, string path)
+    {
+        var context = new DefaultHttpContext();
+        context.Features.Set<IHttpResponseBodyFeature>(new StreamResponseBodyFeature(new MemoryStream()));
+        context.Request.Method = HttpMethods.Get;
+        context.Request.Path = path;
+        context.Response.Body = new MemoryStream();
+
+        await application(context);
+        context.Response.Body.Seek(0, SeekOrigin.Begin);
+        using var reader = new StreamReader(context.Response.Body, Encoding.UTF8, leaveOpen: true);
+        var body = await reader.ReadToEndAsync();
+
+        return (context.Response.StatusCode, body);
+    }
+
+    private static string CreateWebRoot(IReadOnlyDictionary<string, string> files)
+    {
+        var webRootPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(webRootPath);
+
+        foreach (var file in files)
+        {
+            var filePath = Path.Combine(webRootPath, file.Key);
+            var directoryPath = Path.GetDirectoryName(filePath);
+            if (string.IsNullOrWhiteSpace(directoryPath) is false)
+            {
+                Directory.CreateDirectory(directoryPath);
+            }
+
+            File.WriteAllText(filePath, file.Value);
+        }
+
+        return webRootPath;
+    }
+
     private sealed class StubGatewayHostedService : IGatewayHostedService
     {
         public string? SystemMessage { get; set; }
@@ -129,5 +210,20 @@ public class StartCommandHealthTests
         public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class StubWebHostEnvironment(string webRootPath) : IWebHostEnvironment
+    {
+        public string ApplicationName { get; set; } = "MsClaw.Gateway.Tests";
+
+        public IFileProvider WebRootFileProvider { get; set; } = new PhysicalFileProvider(webRootPath);
+
+        public string WebRootPath { get; set; } = webRootPath;
+
+        public string EnvironmentName { get; set; } = Environments.Development;
+
+        public string ContentRootPath { get; set; } = webRootPath;
+
+        public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(webRootPath);
     }
 }

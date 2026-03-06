@@ -12,3 +12,4 @@
 - health: Split liveness from readiness because startup failures should keep /health green while /health/ready reports hosted-service initialization errors, and minimal API service parameters in route lambdas need [FromServices] to avoid body inference.
 - openresponses: the HTTP surface can reuse AgentMessageService through a thin adapter keyed by request user or TraceIdentifier, so SignalR and /v1/responses share the same session and concurrency behavior.
 - sse: OpenResponses framing works cleanly by treating response.created as synthetic, AssistantMessageDeltaEvent and AssistantMessageEvent as payload frames, and SessionIdleEvent as the terminal [DONE] marker.
+- testing: ASP.NET Core static-file middleware is easiest to unit test behind a separate ConfigurePipeline method with a stub IWebHostEnvironment and logging-enabled ApplicationBuilder.

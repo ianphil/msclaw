@@ -7,12 +7,6 @@ All implementation follows strict Red-Green-Refactor:
 2. **GREEN**: Write minimal code to pass test
 3. **REFACTOR**: Clean up while keeping tests green
 
-### Two Test Layers
-| Layer | Purpose | When to Run |
-|-------|---------|-------------|
-| **Unit Tests** | Implementation TDD (Red-Green-Refactor) | During implementation |
-| **Spec Tests** | Intent-based acceptance validation | After all phases complete |
-
 ### Design Principle
 > **Never Rewrite What You've Already Imported.**
 > The Copilot SDK provides `CopilotClient`, `CopilotSession`, `SessionEvent`, and all event subtypes.
@@ -23,13 +17,13 @@ All implementation follows strict Red-Green-Refactor:
 
 ## User Story Mapping
 
-| Story | spec.md Reference | Spec Tests |
-|-------|-------------------|------------|
-| Operator (Web UI) | FR-2, FR-5 | SignalR Hub Streaming, Chat UI |
-| Operator (Session Mgmt) | FR-2.3-2.6 | Session Management |
-| Automation Client (HTTP) | FR-3 | OpenResponses Endpoint |
-| Infrastructure Operator | FR-4 | Health Probes |
-| Mind Author | FR-1.3 | Agent Runtime Identity |
+| Story | spec.md Reference |
+|-------|-------------------|
+| Operator (Web UI) | FR-2, FR-5 |
+| Operator (Session Mgmt) | FR-2.3-2.6 |
+| Automation Client (HTTP) | FR-3 |
+| Infrastructure Operator | FR-4 |
+| Mind Author | FR-1.3 |
 
 ## Dependencies
 
@@ -165,15 +159,15 @@ Phase 1 (Coordination) ──► Phase 2 (Hub) ──► Phase 5 (Chat UI)
 ## Phase 5: Chat UI
 
 ### Static Files Middleware
-- [ ] T074 [TEST] Write test: StartCommand pipeline includes UseDefaultFiles and UseStaticFiles
-- [ ] T075 [IMPL] Add UseDefaultFiles() + UseStaticFiles() to RunGatewayAsync
+- [x] T074 [TEST] Write test: StartCommand pipeline includes UseDefaultFiles and UseStaticFiles
+- [x] T075 [IMPL] Add UseDefaultFiles() + UseStaticFiles() to RunGatewayAsync
 
 ### Chat HTML
-- [ ] T076 [IMPL] Create wwwroot/index.html with SignalR JS client connection to /gateway
-- [ ] T077 [IMPL] Implement message send form and streamed response rendering
+- [x] T076 [IMPL] Create wwwroot/index.html with SignalR JS client connection to /gateway
+- [x] T077 [IMPL] Implement message send form and streamed response rendering
 
 ### Chat Styling
-- [ ] T078 [IMPL] Create wwwroot/css/site.css with chat bubble styling
+- [x] T078 [IMPL] Create wwwroot/css/site.css with chat bubble styling
 
 ## Phase 6: Integration Tests
 
@@ -199,8 +193,6 @@ After all implementation phases are complete:
 - [ ] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes
 - [ ] `dotnet test src/MsClaw.OpenResponses.Tests/MsClaw.OpenResponses.Tests.csproj --nologo` passes
 - [ ] `dotnet test src/MsClaw.Core.Tests/MsClaw.Core.Tests.csproj --nologo` passes (no regressions)
-- [ ] Run spec tests with `/spec-tests` skill using `specs/tests/002-gateway-signalr-openresponses.md`
-- [ ] All spec tests pass → feature complete
 
 ## Task Summary
 

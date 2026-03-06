@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>MsClaw Gateway Chat</title>
+    <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+    <main class="app-shell">
+        <section class="hero">
+            <div>
+                <p class="eyebrow">MsClaw Gateway</p>
+                <h1>SignalR Chat Console</h1>
+                <p class="subtitle">Talk to the active mind from your browser and watch responses stream live.</p>
+            </div>
+            <dl class="status-panel">
+                <div>
+                    <dt>Connection</dt>
+                    <dd id="connection-status">Connecting...</dd>
+                </div>
+                <div>
+                    <dt>Session</dt>
+                    <dd id="session-id">Automatic</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="workspace">
+            <article class="panel conversation-panel">
+                <header class="panel-header">
+                    <h2>Conversation</h2>
+                    <button id="clear-chat" class="secondary-button" type="button">Clear</button>
+                </header>
+                <div id="conversation" class="conversation" aria-live="polite"></div>
+            </article>
+
+            <aside class="panel activity-panel">
+                <header class="panel-header">
+                    <h2>Run Activity</h2>
+                </header>
+                <ol id="activity-log" class="activity-log"></ol>
+            </aside>
+        </section>
+
+        <section class="panel composer-panel">
+            <div class="panel-header">
+                <h2>Prompt</h2>
+                <div class="actions">
+                    <button id="create-session" class="secondary-button" type="button">New Session</button>
+                    <button id="abort-response" class="secondary-button" type="button" disabled>Abort</button>
+                </div>
+            </div>
+            <form id="prompt-form" class="composer">
+                <label class="sr-only" for="prompt-input">Prompt</label>
+                <textarea id="prompt-input" name="prompt" rows="4" placeholder="Ask the mind a question..." required></textarea>
+                <button id="send-button" type="submit">Send message</button>
+            </form>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+    <script>
+        const conversation = document.getElementById("conversation");
+        const activityLog = document.getElementById("activity-log");
+        const promptForm = document.getElementById("prompt-form");
+        const promptInput = document.getElementById("prompt-input");
+        const sendButton = document.getElementById("send-button");
+        const abortButton = document.getElementById("abort-response");
+        const createSessionButton = document.getElementById("create-session");
+        const clearChatButton = document.getElementById("clear-chat");
+        const connectionStatus = document.getElementById("connection-status");
+        const sessionIdLabel = document.getElementById("session-id");
+
+        let activeSubscription = null;
+        let activeAssistantMessage = null;
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/gateway")
+            .withAutomaticReconnect()
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        connection.onreconnecting(() => {
+            setConnectionStatus("Reconnecting...");
+            appendActivity("Connection lost. Attempting to reconnect.", "warning");
+        });
+
+        connection.onreconnected(() => {
+            setConnectionStatus("Connected");
+            appendActivity("Connection restored.", "success");
+        });
+
+        connection.onclose((error) => {
+            setConnectionStatus("Disconnected");
+            if (error) {
+                appendActivity(`Connection closed: ${error.message}`, "error");
+            }
+            setRunActive(false);
+        });
+
+        promptForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const prompt = promptInput.value.trim();
+            if (!prompt) {
+                return;
+            }
+
+            try {
+                await ensureConnected();
+                appendMessage("user", prompt);
+                activeAssistantMessage = appendMessage("assistant", "");
+                appendActivity("Run started.", "info");
+                promptInput.value = "";
+                setRunActive(true);
+
+                activeSubscription = connection.stream("SendMessage", prompt).subscribe({
+                    next: (sessionEvent) => handleSessionEvent(sessionEvent),
+                    complete: () => {
+                        appendActivity("Run complete.", "success");
+                        finalizeAssistantMessage();
+                        setRunActive(false);
+                    },
+                    error: (error) => {
+                        appendActivity(`Run failed: ${error.message}`, "error");
+                        if (activeAssistantMessage && !activeAssistantMessage.textContent.trim()) {
+                            activeAssistantMessage.textContent = "The run failed before any assistant text was returned.";
+                        }
+                        setRunActive(false);
+                    }
+                });
+            }
+            catch (error) {
+                appendActivity(`Unable to send prompt: ${error.message}`, "error");
+                setRunActive(false);
+            }
+        });
+
+        abortButton.addEventListener("click", async () => {
+            try {
+                await ensureConnected();
+                await connection.invoke("AbortResponse");
+                if (activeSubscription) {
+                    activeSubscription.dispose();
+                }
+                appendActivity("Abort requested.", "warning");
+            }
+            catch (error) {
+                appendActivity(`Abort failed: ${error.message}`, "error");
+            }
+            finally {
+                setRunActive(false);
+            }
+        });
+
+        createSessionButton.addEventListener("click", async () => {
+            try {
+                await ensureConnected();
+                const sessionId = await connection.invoke("CreateSession");
+                sessionIdLabel.textContent = sessionId;
+                appendActivity(`Created session ${sessionId}.`, "info");
+            }
+            catch (error) {
+                appendActivity(`Create session failed: ${error.message}`, "error");
+            }
+        });
+
+        clearChatButton.addEventListener("click", () => {
+            conversation.innerHTML = "";
+            activityLog.innerHTML = "";
+            activeAssistantMessage = null;
+        });
+
+        void initialize();
+
+        async function initialize() {
+            try {
+                await ensureConnected();
+                appendActivity("Chat console ready.", "success");
+            }
+            catch (error) {
+                appendActivity(`Initial connection failed: ${error.message}`, "error");
+            }
+        }
+
+        async function ensureConnected() {
+            if (connection.state === signalR.HubConnectionState.Connected) {
+                return;
+            }
+
+            setConnectionStatus("Connecting...");
+            await connection.start();
+            setConnectionStatus("Connected");
+        }
+
+        function handleSessionEvent(sessionEvent) {
+            const data = sessionEvent?.data ?? sessionEvent?.Data ?? {};
+            const deltaContent = readValue(data, "deltaContent", "DeltaContent");
+            const fullContent = readValue(data, "content", "Content");
+            const toolName = readValue(data, "toolName", "ToolName", "name", "Name");
+            const message = readValue(data, "message", "Message");
+            const errorType = readValue(data, "errorType", "ErrorType");
+
+            if (typeof deltaContent === "string" && deltaContent.length > 0) {
+                activeAssistantMessage.textContent += deltaContent;
+                scrollConversationToBottom();
+                return;
+            }
+
+            if (typeof fullContent === "string" && fullContent.length > 0) {
+                activeAssistantMessage.textContent = fullContent;
+                scrollConversationToBottom();
+                return;
+            }
+
+            if (typeof toolName === "string" && toolName.length > 0) {
+                appendActivity(`Tool event: ${toolName}`, "info");
+                return;
+            }
+
+            if (typeof message === "string" && message.length > 0 && typeof errorType === "string") {
+                appendActivity(`Runtime error: ${message}`, "error");
+                if (activeAssistantMessage && !activeAssistantMessage.textContent.trim()) {
+                    activeAssistantMessage.textContent = message;
+                }
+                return;
+            }
+
+            appendActivity(`Event received: ${JSON.stringify(sessionEvent)}`, "info");
+        }
+
+        function finalizeAssistantMessage() {
+            if (activeAssistantMessage && !activeAssistantMessage.textContent.trim()) {
+                activeAssistantMessage.textContent = "No assistant text was returned for this run.";
+            }
+            activeAssistantMessage = null;
+            activeSubscription = null;
+        }
+
+        function setRunActive(isActive) {
+            sendButton.disabled = isActive;
+            abortButton.disabled = !isActive;
+            createSessionButton.disabled = isActive;
+        }
+
+        function setConnectionStatus(text) {
+            connectionStatus.textContent = text;
+        }
+
+        function appendMessage(role, text) {
+            const wrapper = document.createElement("article");
+            wrapper.className = `message message-${role}`;
+
+            const label = document.createElement("p");
+            label.className = "message-role";
+            label.textContent = role === "user" ? "You" : "Assistant";
+
+            const body = document.createElement("div");
+            body.className = "message-body";
+            body.textContent = text;
+
+            wrapper.append(label, body);
+            conversation.appendChild(wrapper);
+            scrollConversationToBottom();
+
+            return body;
+        }
+
+        function appendActivity(text, tone) {
+            const item = document.createElement("li");
+            item.className = `activity activity-${tone}`;
+            item.textContent = text;
+            activityLog.appendChild(item);
+            item.scrollIntoView({ block: "nearest" });
+        }
+
+        function readValue(source, ...keys) {
+            for (const key of keys) {
+                if (Object.prototype.hasOwnProperty.call(source, key)) {
+                    return source[key];
+                }
+            }
+
+            return undefined;
+        }
+
+        function scrollConversationToBottom() {
+            conversation.scrollTop = conversation.scrollHeight;
+        }
+    </script>
+</body>
+</html>
