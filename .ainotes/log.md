@@ -13,3 +13,6 @@
 - openresponses: the HTTP surface can reuse AgentMessageService through a thin adapter keyed by request user or TraceIdentifier, so SignalR and /v1/responses share the same session and concurrency behavior.
 - sse: OpenResponses framing works cleanly by treating response.created as synthetic, AssistantMessageDeltaEvent and AssistantMessageEvent as payload frames, and SessionIdleEvent as the terminal [DONE] marker.
 - testing: ASP.NET Core static-file middleware is easiest to unit test behind a separate ConfigurePipeline method with a stub IWebHostEnvironment and logging-enabled ApplicationBuilder.
+- integration-tests: Gateway integration tests avoid WebApplicationFactory by building WebApplication directly with StartCommand.MapEndpoints and stub services — ConfigureWebHostBuilder lacks UseUrls, so use app.Urls.Add("http://127.0.0.1:0") then read IServerAddressesFeature post-start.
+- integration-tests: SDK event data types like AssistantMessageDeltaData and AssistantMessageData have required MessageId property — must be set in test event construction or CS9035 fires.
+- concurrency: SignalR MaximumParallelInvocationsPerClient defaults to 1, serializing hub calls per connection. Integration tests for concurrent rejection are more practical via the HTTP /v1/responses endpoint with matching User fields than through the hub.

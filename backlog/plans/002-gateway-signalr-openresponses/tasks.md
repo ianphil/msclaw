@@ -172,27 +172,27 @@ Phase 1 (Coordination) ──► Phase 2 (Hub) ──► Phase 5 (Chat UI)
 ## Phase 6: Integration Tests
 
 ### Hub Streaming
-- [ ] T079 [TEST] Write integration test: Connect to hub, send message, receive streamed SDK events
-- [ ] T080 [IMPL] Implement test infrastructure (WebApplicationFactory or in-process gateway)
+- [x] T079 [TEST] Write integration test: Connect to hub, send message, receive streamed SDK events
+- [x] T080 [IMPL] Implement test infrastructure (WebApplicationFactory or in-process gateway)
 
 ### Concurrency Rejection
-- [ ] T081 [TEST] Write integration test: Second concurrent send from same caller is rejected
+- [x] T081 [TEST] Write integration test: Second concurrent send from same caller is rejected
 
 ### OpenResponses HTTP
-- [ ] T082 [TEST] Write integration test: POST /v1/responses returns valid OpenResponses JSON
-- [ ] T083 [TEST] Write integration test: POST /v1/responses with stream:true returns SSE events
+- [x] T082 [TEST] Write integration test: POST /v1/responses returns valid OpenResponses JSON
+- [x] T083 [TEST] Write integration test: POST /v1/responses with stream:true returns SSE events
 
 ### Health Probes
-- [ ] T084 [TEST] Write integration test: /health returns 200, /health/ready reflects hosted service state
+- [x] T084 [TEST] Write integration test: /health returns 200, /health/ready reflects hosted service state
 
 ## Final Validation
 
 After all implementation phases are complete:
 
-- [ ] `dotnet build src/MsClaw.slnx --nologo` passes
-- [ ] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes
-- [ ] `dotnet test src/MsClaw.OpenResponses.Tests/MsClaw.OpenResponses.Tests.csproj --nologo` passes
-- [ ] `dotnet test src/MsClaw.Core.Tests/MsClaw.Core.Tests.csproj --nologo` passes (no regressions)
+- [x] `dotnet build src/MsClaw.slnx --nologo` passes
+- [x] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes
+- [x] `dotnet test src/MsClaw.OpenResponses.Tests/MsClaw.OpenResponses.Tests.csproj --nologo` passes
+- [x] `dotnet test src/MsClaw.Core.Tests/MsClaw.Core.Tests.csproj --nologo` passes (no regressions)
 
 ## Task Summary
 
