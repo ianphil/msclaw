@@ -24,3 +24,5 @@
 - scaffold: Three canonical skills ship with every mind: commit (stage/observe/push), capture (decompose/route/link context), daily-report (ADO+Teams+Calendar+Email morning briefing). All sourced from ianphil/public-notes.
 - session-pool: Replaced per-message session create/resume/destroy with ISessionPool — sessions are created once, reused across messages, disposed on SignalR disconnect. Eliminated 2 unnecessary RPC round-trips per message.
 - cleanup: Removed ISessionMap interface, CallerRegistry trimmed to IConcurrencyGate only. SessionPool holds live IGatewaySession instances keyed by caller.
+- ux: Terminal-style chat layout — input pinned at top, new messages prepend directly below it, older messages push down. This is stdout order, not chat order; `flex-direction: column` with `prepend()` is the correct implementation, not `column-reverse`.
+- ux: Activity log (raw JSON events) works best as a right-side drawer that streams in real-time via SignalR — non-modal so the user can keep chatting while inspecting events. Click-to-expand JSON per event row keeps it compact.
