@@ -209,8 +209,7 @@ function Get-TargetsFromFrontmatter {
     $parsed = Parse-Frontmatter $content
 
     if (-not $parsed.Metadata.ContainsKey("target")) {
-        Write-Error "[missing-target] No 'target:' field in frontmatter of $SpecFilePath"
-        exit 1
+        throw "[missing-target] No 'target:' field in frontmatter of $SpecFilePath"
     }
 
     $rawTarget = $parsed.Metadata["target"]
@@ -219,8 +218,7 @@ function Get-TargetsFromFrontmatter {
     $paths = @()
     foreach ($t in $targets) {
         if (-not (Test-Path $t)) {
-            Write-Error "Target file not found: $t (declared in $SpecFilePath)"
-            exit 1
+            throw "Target file not found: $t (declared in $SpecFilePath)"
         }
         $paths += $t
     }
@@ -287,18 +285,19 @@ function Parse-SpecTests {
             }
 
             $assertionBlock = ($assertionLines -join "`n").Trim()
+            if (-not $assertionBlock -and -not $missingAssertion) {
+                $missingAssertion = $true
+            }
             $missingIntent = -not $intent
 
-            if ($assertionBlock -or $missingAssertion) {
-                $tests += [PSCustomObject]@{
-                    Name             = $testName
-                    Section          = $currentSection
-                    Intent           = $intent
-                    AssertionBlock   = $assertionBlock
-                    LineNumber       = $testLine
-                    MissingIntent    = $missingIntent
-                    MissingAssertion = $missingAssertion
-                }
+            $tests += [PSCustomObject]@{
+                Name             = $testName
+                Section          = $currentSection
+                Intent           = $intent
+                AssertionBlock   = $assertionBlock
+                LineNumber       = $testLine
+                MissingIntent    = $missingIntent
+                MissingAssertion = $missingAssertion
             }
             continue
         }
@@ -403,14 +402,33 @@ function Render-JudgePrompt {
     }
 
     $template = Get-Content $script:JudgePromptFile -Raw -Encoding UTF8
-    $targetFiles = ($TargetPaths | ForEach-Object { "- $(Resolve-Path $_)" }) -join "`n"
 
-    return $template `
-        -replace [regex]::Escape('{{target_files}}'), $targetFiles `
-        -replace [regex]::Escape('{{test_name}}'), $Test.Name `
-        -replace [regex]::Escape('{{test_section}}'), $Test.Section `
-        -replace [regex]::Escape('{{intent}}'), $Test.Intent `
-        -replace [regex]::Escape('{{assertion_block}}'), $Test.AssertionBlock
+    # Only inline files the test actually references to stay under command-line limits
+    $referencedPaths = @()
+    foreach ($path in $TargetPaths) {
+        $fileName = [System.IO.Path]::GetFileName($path)
+        if ($Test.AssertionBlock.Contains($path) -or $Test.AssertionBlock.Contains($fileName)) {
+            $referencedPaths += $path
+        }
+    }
+    if ($referencedPaths.Count -eq 0) { $referencedPaths = $TargetPaths }
+
+    $fence = '``' + '`'
+    $contentBlocks = @()
+    foreach ($path in $referencedPaths) {
+        $resolved = Resolve-Path $path
+        $fileContent = (Get-Content $resolved -Raw -Encoding UTF8).TrimEnd()
+        $contentBlocks += "### File: $path`n`n$fence`n$fileContent`n$fence"
+    }
+    $targetContents = $contentBlocks -join "`n`n"
+
+    # Use literal .Replace() to avoid regex issues with $ in file contents
+    return $template.
+        Replace('{{target_contents}}', $targetContents).
+        Replace('{{test_name}}', $Test.Name).
+        Replace('{{test_section}}', $Test.Section).
+        Replace('{{intent}}', $Test.Intent).
+        Replace('{{assertion_block}}', $Test.AssertionBlock)
 }
 
 # ============================================================================
@@ -446,30 +464,58 @@ function Invoke-Judge {
     $maxRetries = 2
     $lastError = ""
     $responseText = ""
+    $copilotPath = (Get-Command copilot -ErrorAction Stop).Source
+    $cwd = (Get-Location).Path
 
     for ($attempt = 0; $attempt -lt $maxRetries; $attempt++) {
         $currentPrompt = if ($attempt -eq 0) { $prompt } else { $prompt + "`n`nREMINDER: Output ONLY a JSON object. No markdown, no code fences." }
         $tempFile = $null
+        $outFile = $null
+        $errFile = $null
+        $scriptFile = $null
 
         try {
-            # Write prompt to temp file to avoid command-line length limits
+            # Write prompt to temp file, then invoke copilot via a wrapper script
+            # to avoid cmd.exe command-line length limits (~8K for .cmd files).
             $tempFile = [System.IO.Path]::GetTempFileName()
             Set-Content -Path $tempFile -Value $currentPrompt -Encoding UTF8 -NoNewline
 
-            $copilotPath = (Get-Command copilot -ErrorAction Stop).Source
-            $psi = [System.Diagnostics.ProcessStartInfo]::new($copilotPath)
-            $psi.Arguments = "-p `"$(($tempFile -replace '\\','\\' -replace '"','\"'))`" -s --allow-all-tools --model $Model --no-custom-instructions"
-            # Actually: pass prompt as content read from file via subexpression won't work in args.
-            # Use a wrapper: copilot reads -p from a response file isn't supported.
-            # Simplest: invoke directly, capture output, with timeout.
-            $responseText = & copilot -p (Get-Content $tempFile -Raw -Encoding UTF8) -s --allow-all-tools --model $Model --no-custom-instructions 2>&1 | Out-String
-            Remove-Item $tempFile -ErrorAction SilentlyContinue
-            $tempFile = $null
+            $outFile = [System.IO.Path]::GetTempFileName()
+            $errFile = [System.IO.Path]::GetTempFileName()
+            $scriptFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), ".ps1")
+
+            $scriptBody = @"
+Set-Location -LiteralPath '$($cwd -replace "'","''")'
+`$p = Get-Content -LiteralPath '$($tempFile -replace "'","''")' -Raw -Encoding UTF8
+& '$($copilotPath -replace "'","''")' -p `$p -s --model '$Model' --no-custom-instructions 2>&1
+"@
+            Set-Content -Path $scriptFile -Value $scriptBody -Encoding UTF8 -NoNewline
+
+            $proc = Start-Process -FilePath "pwsh" -ArgumentList @("-NoProfile", "-NoLogo", "-File", $scriptFile) `
+                -NoNewWindow -PassThru -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+
+            $timedOut = $false
+            try {
+                $proc | Wait-Process -Timeout $script:RunTimeout -ErrorAction Stop
+            }
+            catch {
+                $timedOut = $true
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+
+            if ($timedOut) {
+                $lastError = "Copilot timed out after $($script:RunTimeout)s"
+                continue
+            }
+
+            $responseText = if (Test-Path $outFile) { Get-Content $outFile -Raw -Encoding UTF8 } else { "" }
         }
         catch {
-            if ($tempFile) { Remove-Item $tempFile -ErrorAction SilentlyContinue }
             $lastError = "Invocation failed: $_"
             continue
+        }
+        finally {
+            Remove-Item $tempFile, $outFile, $errFile, $scriptFile -ErrorAction SilentlyContinue
         }
 
         if (-not $responseText) {

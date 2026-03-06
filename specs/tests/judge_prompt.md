@@ -56,12 +56,9 @@ Evaluate whether the target implementation would produce the expected outcome wh
 
 ## Target Under Evaluation
 
-**IMPORTANT:** Use your Read tool to access the target file(s) before evaluating.
+The target file contents are provided inline below. Do **NOT** use tools to read files — evaluate only what is shown here.
 
-**Target file(s) to read:**
-{{target_files}}
-
-Read each file listed above. Do NOT assume content—you must read the actual files.
+{{target_contents}}
 
 ---
 

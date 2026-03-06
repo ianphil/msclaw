@@ -110,8 +110,8 @@ After all implementation phases are complete:
 - [x] `dotnet build src/MsClaw.slnx --nologo` passes with zero warnings
 - [x] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes
 - [x] `dotnet test src/MsClaw.slnx --nologo` — full solution passes
-- [ ] Run spec tests with `/spec-tests` skill using `specs/tests/001-gateway-mvp-plumbing.md`
-- [ ] All spec tests pass → feature complete
+- [x] Run spec tests with `/spec-tests` skill using `specs/tests/001-gateway-mvp-plumbing.md`
+- [x] All spec tests pass → feature complete
 
 ## Task Summary
 
