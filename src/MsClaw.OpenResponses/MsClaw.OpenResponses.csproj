@@ -11,6 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
-    <PackageReference Include="GitHub.Copilot.SDK" Version="0.1.29" />
+    <ProjectReference Include="..\MsClaw.Core\MsClaw.Core.csproj" />
   </ItemGroup>
 </Project>
