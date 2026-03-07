@@ -1,14 +1,19 @@
 using System.Collections.Concurrent;
+using System.Security.Claims;
 using GitHub.Copilot.SDK;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using MsClaw.Gateway.Commands;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
 using MsClaw.OpenResponses;
+using System.Text.Encodings.Web;
 using Xunit;
 
 namespace MsClaw.Gateway.Tests;
@@ -41,6 +46,9 @@ public sealed class GatewayIntegrationFixture : IAsyncLifetime
     {
         var builder = WebApplication.CreateBuilder();
 
+        builder.Services.AddAuthentication("Test")
+            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", null);
+        builder.Services.AddAuthorization();
         builder.Services.AddSignalR(options =>
         {
             options.MaximumParallelInvocationsPerClient = 2;
@@ -61,6 +69,8 @@ public sealed class GatewayIntegrationFixture : IAsyncLifetime
 
         app = builder.Build();
         app.Urls.Add("http://127.0.0.1:0");
+        app.UseAuthentication();
+        app.UseAuthorization();
         StartCommand.MapEndpoints(app);
         await app.StartAsync();
 
@@ -232,3 +242,22 @@ public sealed class StubIntegrationGatewaySession(string sessionId) : IGatewaySe
 
 [CollectionDefinition("Gateway Integration")]
 public class GatewayIntegrationCollection : ICollectionFixture<GatewayIntegrationFixture>;
+
+/// <summary>
+/// Authentication handler that always succeeds, used for integration testing.
+/// </summary>
+public sealed class TestAuthHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var claims = new[] { new Claim(ClaimTypes.Name, "test-user") };
+        var identity = new ClaimsIdentity(claims, "Test");
+        var principal = new ClaimsPrincipal(identity);
+        var ticket = new AuthenticationTicket(principal, "Test");
+
+        return Task.FromResult(AuthenticateResult.Success(ticket));
+    }
+}

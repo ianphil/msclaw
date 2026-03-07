@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Identity.Web;
 using MsClaw.Core;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Hubs;
@@ -40,8 +42,30 @@ public static class StartCommand
         return command;
     }
 
-    public static void ConfigureServices(IServiceCollection services, GatewayOptions options)
+    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration, GatewayOptions options)
     {
+        services.AddAuthentication()
+            .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
+        services.Configure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>("Bearer", jwtOptions =>
+        {
+            var existingOnMessageReceived = jwtOptions.Events?.OnMessageReceived;
+            jwtOptions.Events ??= new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents();
+            jwtOptions.Events.OnMessageReceived = async context =>
+            {
+                if (existingOnMessageReceived is not null)
+                {
+                    await existingOnMessageReceived(context);
+                }
+
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/gateway"))
+                {
+                    context.Token = accessToken;
+                }
+            };
+        });
+        services.AddAuthorization();
         services.AddSignalR();
         services.AddSingleton(options);
         services.AddSingleton<IMindValidator, MindValidator>();
@@ -89,6 +113,8 @@ public static class StartCommand
     {
         application.UseDefaultFiles();
         application.UseStaticFiles();
+        application.UseAuthentication();
+        application.UseAuthorization();
     }
 
     public static async Task<int> ExecuteStartAsync(
@@ -127,7 +153,7 @@ public static class StartCommand
             WebRootPath = Path.Combine(assemblyDir, "wwwroot")
         });
         builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
-        ConfigureServices(builder.Services, options);
+        ConfigureServices(builder.Services, builder.Configuration, options);
         var app = builder.Build();
         ConfigurePipeline(app);
         MapEndpoints(app);

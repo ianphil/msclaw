@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Core;
 using MsClaw.Gateway.Commands;
@@ -9,13 +10,25 @@ namespace MsClaw.Gateway.Tests;
 
 public class StartCommandDiTests
 {
+    private static IConfiguration CreateTestConfiguration()
+    {
+        return new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["AzureAd:Instance"] = "https://login.microsoftonline.com/",
+                ["AzureAd:TenantId"] = "test-tenant-id",
+                ["AzureAd:ClientId"] = "test-client-id"
+            })
+            .Build();
+    }
+
     [Fact]
     public async Task ConfigureServices_RegistersCoreServicesAndHostedService()
     {
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, options);
+        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
         Assert.NotNull(provider.GetService<IMindValidator>());
@@ -30,7 +43,7 @@ public class StartCommandDiTests
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, options);
+        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
         var first = provider.GetRequiredService<IConcurrencyGate>();
@@ -45,7 +58,7 @@ public class StartCommandDiTests
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, options);
+        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
         var first = provider.GetRequiredService<ISessionPool>();
@@ -60,7 +73,7 @@ public class StartCommandDiTests
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, options);
+        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
 

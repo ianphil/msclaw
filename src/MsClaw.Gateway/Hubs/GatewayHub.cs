@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using GitHub.Copilot.SDK;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
@@ -9,6 +10,7 @@ namespace MsClaw.Gateway.Hubs;
 /// <summary>
 /// Routes SignalR gateway operations to the underlying message and session services.
 /// </summary>
+[Authorize]
 public sealed class GatewayHub(AgentMessageService messageService, ISessionPool sessionPool) : Hub<IGatewayHubClient>
 {
     /// <summary>

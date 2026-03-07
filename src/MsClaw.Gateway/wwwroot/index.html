@@ -20,6 +20,7 @@
                 <div class="status-bar">
                     <span class="dot" id="status-dot"></span>
                     <span id="connection-status">Connecting…</span>
+                    <span id="user-email" class="session-label"></span>
                     <span class="toolbar-sep"></span>
                     <span id="session-id" class="session-label">No session</span>
                 </div>
@@ -52,9 +53,54 @@
         <ol id="activity-log" class="activity-log"></ol>
     </aside>
 
+    <script src="/lib/msal/msal-browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
     <script>
+        // ─── MSAL config ───
+        const msalConfig = {
+            auth: {
+                clientId: "d3ede85c-4af4-43aa-b80a-478f16ccb859",
+                authority: "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47",
+                redirectUri: "http://127.0.0.1:18789/"
+            }
+        };
+        const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+        let activeAccount = null;
+
+        async function ensureLoggedIn() {
+            await msalInstance.initialize();
+            const response = await msalInstance.handleRedirectPromise();
+            if (response) {
+                activeAccount = response.account;
+                return activeAccount;
+            }
+
+            const accounts = msalInstance.getAllAccounts();
+            if (accounts.length > 0) {
+                activeAccount = accounts[0];
+                return activeAccount;
+            }
+
+            await msalInstance.loginRedirect({ scopes: ["openid", "profile", "User.Read"] });
+            return null; // page will redirect
+        }
+
+        async function getAccessToken() {
+            const tokenRequest = {
+                scopes: [`api://${msalConfig.auth.clientId}/access_as_user`],
+                account: activeAccount
+            };
+            try {
+                const response = await msalInstance.acquireTokenSilent(tokenRequest);
+                return response.accessToken;
+            } catch {
+                await msalInstance.acquireTokenRedirect(tokenRequest);
+                return null;
+            }
+        }
+
         marked.use({ breaks: true, gfm: true });
         const conversation = document.getElementById("conversation");
         const activityLog = document.getElementById("activity-log");
@@ -109,7 +155,9 @@
         // ─── SignalR connection ───
 
         const connection = new signalR.HubConnectionBuilder()
-            .withUrl("/gateway")
+            .withUrl("/gateway", {
+                accessTokenFactory: () => getAccessToken()
+            })
             .withAutomaticReconnect()
             .configureLogging(signalR.LogLevel.Information)
             .build();
@@ -211,10 +259,15 @@
 
         async function initialize() {
             try {
+                const account = await ensureLoggedIn();
+                if (!account) return; // redirecting to login
+                document.getElementById("user-email").textContent = account.username;
+                appendActivity(`Signed in as ${account.username}.`, "success");
                 await ensureConnected();
                 appendActivity("Console ready.", "success");
             } catch (error) {
-                appendActivity(`Initial connection failed: ${error.message}`, "error");
+                console.error("Init error:", error);
+                appendActivity(`Initialization failed: ${error.message}`, "error");
             }
         }
 

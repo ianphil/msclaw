@@ -119,6 +119,9 @@ public class StartCommandHealthTests
             using var services = new ServiceCollection()
                 .AddLogging()
                 .AddRouting()
+                .AddAuthentication()
+                .Services
+                .AddAuthorization()
                 .AddSingleton<IWebHostEnvironment>(new StubWebHostEnvironment(webRootPath))
                 .BuildServiceProvider();
             var builder = new ApplicationBuilder(services);
