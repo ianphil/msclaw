@@ -104,6 +104,14 @@ devtunnel port create <id> -p 18789           # register the port
 devtunnel host <id>                           # host (port already configured)
 ```
 
+### Project Placement
+
+The tunnel manager should live in its own class library: **MsClaw.Tunnel**. This keeps tunnel concerns (CLI detection, process lifecycle, config) isolated from Gateway and Core. The Gateway project references it and wires up the `--tunnel` flag.
+
+- **MsClaw.Core** — `UserConfigLoader` (reads `~/.msclaw/config.json`) — shared by Tunnel and future consumers
+- **MsClaw.Tunnel** — `TunnelManager`, `DevTunnelLocator`, tunnel config types
+- **MsClaw.Gateway** — references MsClaw.Tunnel, adds `--tunnel` CLI flag, registers services
+
 ### Considerations
 
 - Requires `devtunnel` CLI on PATH (already standard on Microsoft devboxes)
@@ -114,6 +122,8 @@ devtunnel host <id>                           # host (port already configured)
 
 ### Scope
 
+- [ ] Create `MsClaw.Tunnel` class library project
+- [ ] Implement `UserConfigLoader` in MsClaw.Core for `~/.msclaw/config.json`
 - [ ] Add `--tunnel` flag to `start` command
 - [ ] Implement `TunnelManager` service (start/stop/status)
 - [ ] Support persistent tunnels — auto-create on first `--tunnel` run, save ID to `~/.msclaw/config.json`
