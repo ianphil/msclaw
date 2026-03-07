@@ -13,6 +13,7 @@ using MsClaw.Gateway.Commands;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
 using MsClaw.OpenResponses;
+using MsClaw.Tunnel;
 using System.Text.Encodings.Web;
 using Xunit;
 
@@ -64,6 +65,7 @@ public sealed class GatewayIntegrationFixture : IAsyncLifetime
         builder.Services.AddSingleton<ISessionPool, SessionPool>();
         builder.Services.AddSingleton<IGatewayClient>(GatewayClient);
         builder.Services.AddSingleton<IGatewayHostedService>(HostedService);
+        builder.Services.AddSingleton<ITunnelManager>(new StubIntegrationTunnelManager());
         builder.Services.AddSingleton<AgentMessageService>();
         builder.Services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
 
@@ -152,6 +154,24 @@ public sealed class StubIntegrationGatewayClient : IGatewayClient
     public Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default) => Task.CompletedTask;
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+}
+
+/// <summary>
+/// Stub tunnel manager used for integration tests.
+/// </summary>
+public sealed class StubIntegrationTunnelManager : ITunnelManager
+{
+    public TunnelStatus Status { get; } = new()
+    {
+        Enabled = false,
+        IsRunning = false
+    };
+
+    public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public TunnelStatus GetStatus() => Status;
 }
 
 /// <summary>

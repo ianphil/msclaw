@@ -25,6 +25,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\MsClaw.Core\MsClaw.Core.csproj" />
+    <ProjectReference Include="..\MsClaw.Tunnel\MsClaw.Tunnel.csproj" />
     <ProjectReference Include="..\MsClaw.OpenResponses\MsClaw.OpenResponses.csproj" />
   </ItemGroup>
   <ItemGroup>

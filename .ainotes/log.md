@@ -26,3 +26,8 @@
 - cleanup: Removed ISessionMap interface, CallerRegistry trimmed to IConcurrencyGate only. SessionPool holds live IGatewaySession instances keyed by caller.
 - ux: Terminal-style chat layout — input pinned at top, new messages prepend directly below it, older messages push down. This is stdout order, not chat order; `flex-direction: column` with `prepend()` is the correct implementation, not `column-reverse`.
 - ux: Activity log (raw JSON events) works best as a right-side drawer that streams in real-time via SignalR — non-modal so the user can keep chatting while inspecting events. Click-to-expand JSON per event row keeps it compact.
+
+## 2026-03-07
+- devtunnel: persistent tunnel hosting should use `devtunnel host <tunnelId>` once the port is already registered; passing `-p` during host can trigger "Batch update of ports is not supported" for existing tunnels.
+- devtunnel: `devtunnel port create` is not idempotent by default and returns a conflict when the port already exists, so tunnel startup must treat existing-port conflicts as a success path.
+- startup: enabling `--tunnel` while the mind fails validation causes hosted-service startup failures to cascade; surfacing specific actionable errors (missing CLI/login guidance) improves operator recovery.

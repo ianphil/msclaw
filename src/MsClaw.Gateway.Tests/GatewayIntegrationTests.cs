@@ -197,6 +197,19 @@ public class GatewayIntegrationTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task TunnelStatus_ReturnsStatusPayload()
+    {
+        using var httpClient = fixture.CreateHttpClient();
+
+        var response = await httpClient.GetAsync("/api/tunnel/status");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(json.GetProperty("enabled").GetBoolean());
+        Assert.False(json.GetProperty("running").GetBoolean());
+    }
+
     private static HttpRequestMessage CreateOpenResponseRequest(string prompt, string? user = null)
     {
         var body = JsonSerializer.Serialize(new { model = "test-model", input = prompt, stream = false, user });

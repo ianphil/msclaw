@@ -4,6 +4,7 @@ using MsClaw.Core;
 using MsClaw.Gateway.Commands;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
+using MsClaw.Tunnel;
 using Xunit;
 
 namespace MsClaw.Gateway.Tests;
@@ -35,6 +36,7 @@ public class StartCommandDiTests
         Assert.NotNull(provider.GetService<IIdentityLoader>());
         Assert.NotNull(provider.GetService<IMindScaffold>());
         Assert.NotNull(provider.GetService<IGatewayHostedService>());
+        Assert.NotNull(provider.GetService<ITunnelManager>());
     }
 
     [Fact]

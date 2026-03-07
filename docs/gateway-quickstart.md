@@ -8,6 +8,7 @@ Manual testing guide for the MsClaw Gateway. Scaffolds a disposable mind, starts
 |---|---|
 | .NET 10 SDK | Build the gateway binary |
 | GitHub Copilot CLI on PATH | The gateway spawns it as a child process |
+| Dev Tunnels CLI (`devtunnel`) on PATH (for `--tunnel`) | Expose local gateway over HTTPS |
 | A terminal with `curl` (or Invoke-WebRequest) | Hit the HTTP endpoints |
 | A web browser | Use the built-in chat UI |
 
@@ -96,6 +97,18 @@ Point the gateway at the mind you just created:
 msclaw start --mind ./my-mind
 ```
 
+Enable remote access via a persistent dev tunnel:
+
+```bash
+msclaw start --mind ./my-mind --tunnel
+```
+
+Use a specific persistent tunnel ID:
+
+```bash
+msclaw start --mind ./my-mind --tunnel --tunnel-id my-msclaw-tunnel
+```
+
 Or use an existing mind:
 
 ```bash
@@ -111,6 +124,9 @@ The gateway:
 3. Starts a `CopilotClient` (spawns the Copilot CLI).
 4. Binds Kestrel to `http://127.0.0.1:18789`.
 5. Serves the chat UI, SignalR hub, OpenResponses endpoint, and health probes.
+
+When `--tunnel` is enabled, the gateway also starts a `devtunnel` host process and logs the public HTTPS URL.
+If SignalR WebSocket upgrade is unavailable through a tunnel, SignalR automatically falls back to SSE/Long Polling.
 
 You should see ASP.NET Core startup logs in the terminal.
 
@@ -165,6 +181,26 @@ curl -s http://127.0.0.1:18789/health/ready | jq .
 ```powershell
 Invoke-RestMethod http://127.0.0.1:18789/health
 Invoke-RestMethod http://127.0.0.1:18789/health/ready
+```
+
+### Tunnel status
+
+When tunnel mode is enabled, this endpoint reports the resolved tunnel state:
+
+```bash
+curl -s http://127.0.0.1:18789/api/tunnel/status | jq .
+```
+
+Example response:
+
+```json
+{
+  "enabled": true,
+  "running": true,
+  "tunnelId": "my-msclaw-tunnel",
+  "publicUrl": "https://my-msclaw-tunnel.devtunnels.ms",
+  "error": null
+}
 ```
 
 ---
@@ -343,6 +379,8 @@ rm -rf ./test-mind
 | Scaffold a mind | `msclaw mind scaffold <path>` |
 | Validate a mind | `msclaw mind validate <path>` |
 | Start (existing mind) | `msclaw start --mind <path>` |
+| Start with tunnel | `msclaw start --mind <path> --tunnel` |
+| Start with tunnel ID | `msclaw start --mind <path> --tunnel --tunnel-id <id>` |
 | Start (new mind) | `msclaw start --new-mind <path>` |
 | Chat UI | Open `http://127.0.0.1:18789` in browser |
 | Liveness probe | `curl http://127.0.0.1:18789/health` |
@@ -357,6 +395,7 @@ rm -rf ./test-mind
 | `/` | GET | Chat UI (static HTML/JS) |
 | `/health` | GET | Liveness probe — always 200 |
 | `/health/ready` | GET | Readiness probe — 200 or 503 |
+| `/api/tunnel/status` | GET | Dev tunnel runtime status |
 | `/v1/responses` | POST | OpenResponses API (JSON or SSE) |
 | `/gateway` | POST | SignalR hub |
 

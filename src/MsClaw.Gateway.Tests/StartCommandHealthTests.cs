@@ -9,6 +9,7 @@ using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using MsClaw.Gateway.Commands;
 using MsClaw.Gateway.Hosting;
+using MsClaw.Tunnel;
 using Xunit;
 
 namespace MsClaw.Gateway.Tests;
@@ -84,7 +85,26 @@ public class StartCommandHealthTests
 
         Assert.Contains("/health", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/health/ready", routePatterns, StringComparer.Ordinal);
+        Assert.Contains("/api/tunnel/status", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/v1/responses", routePatterns, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildTunnelStatusResult_ReturnsTunnelStatePayload()
+    {
+        var result = StartCommand.BuildTunnelStatusResult(new StubTunnelManager(new TunnelStatus
+        {
+            Enabled = true,
+            IsRunning = true,
+            TunnelId = "alpha-tunnel",
+            PublicUrl = "https://alpha-tunnel.devtunnels.ms"
+        }));
+
+        var (statusCode, body) = await ExecuteResultAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+        Assert.Contains("alpha-tunnel", body, StringComparison.Ordinal);
+        Assert.Contains("devtunnels.ms", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -228,5 +248,14 @@ public class StartCommandHealthTests
         public string ContentRootPath { get; set; } = webRootPath;
 
         public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(webRootPath);
+    }
+
+    private sealed class StubTunnelManager(TunnelStatus status) : ITunnelManager
+    {
+        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public TunnelStatus GetStatus() => status;
     }
 }
