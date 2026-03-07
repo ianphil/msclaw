@@ -15,6 +15,7 @@ public static class EndpointRouteBuilderExtensions
     {
         ArgumentNullException.ThrowIfNull(endpoints);
 
-        return endpoints.MapPost("/v1/responses", OpenResponsesMiddleware.HandleAsync);
+        return endpoints.MapPost("/v1/responses", OpenResponsesMiddleware.HandleAsync)
+            .RequireAuthorization();
     }
 }
