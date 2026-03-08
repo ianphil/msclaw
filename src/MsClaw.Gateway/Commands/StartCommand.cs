@@ -147,11 +147,42 @@ public static class StartCommand
         }, statusCode: StatusCodes.Status200OK);
     }
 
+    /// <summary>
+    /// Builds an auth-context response used by the browser UI to bootstrap bearer-authenticated calls.
+    /// </summary>
+    public static IResult BuildAuthContextResult(IUserConfigLoader userConfigLoader)
+    {
+        ArgumentNullException.ThrowIfNull(userConfigLoader);
+
+        var config = userConfigLoader.Load();
+        if (TryGetValidAuth(config, DateTimeOffset.UtcNow, out var authConfig) is false)
+        {
+            return Results.Json(
+                new
+                {
+                    authenticated = false,
+                    message = "No active login session. Run `msclaw auth login` and restart the gateway."
+                },
+                statusCode: StatusCodes.Status401Unauthorized);
+        }
+
+        return Results.Json(
+            new
+            {
+                authenticated = true,
+                username = authConfig!.Username,
+                accessToken = authConfig.AccessToken,
+                expiresAtUtc = authConfig.ExpiresAtUtc
+            },
+            statusCode: StatusCodes.Status200OK);
+    }
+
     public static void MapEndpoints(IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/health", () => BuildLivenessResult());
         endpoints.MapGet("/health/ready", ([FromServices] IGatewayHostedService hostedService) => BuildReadinessResult(hostedService));
         endpoints.MapGet("/api/tunnel/status", ([FromServices] ITunnelManager tunnelManager) => BuildTunnelStatusResult(tunnelManager));
+        endpoints.MapGet("/api/auth/context", ([FromServices] IUserConfigLoader userConfigLoader) => BuildAuthContextResult(userConfigLoader));
         endpoints.MapHub<GatewayHub>("/gateway");
         endpoints.MapOpenResponses();
     }
@@ -190,6 +221,7 @@ public static class StartCommand
         }
 
         var tunnelRequested = tunnelEnabled || IsTunnelEnabledFromEnvironment() || string.IsNullOrWhiteSpace(tunnelId) is false;
+        EnsureTunnelLogin(tunnelRequested, userConfigLoader);
         var resolvedTunnelId = tunnelRequested ? ResolveTunnelId(tunnelId, userConfigLoader) : null;
         var options = new GatewayOptions
         {
@@ -230,6 +262,42 @@ public static class StartCommand
         }
 
         return userConfigLoader.Load().TunnelId;
+    }
+
+    private static void EnsureTunnelLogin(bool tunnelRequested, IUserConfigLoader? userConfigLoader)
+    {
+        if (tunnelRequested is false)
+        {
+            return;
+        }
+
+        if (userConfigLoader is null)
+        {
+            throw new InvalidOperationException("Tunnel mode requires user config access. Run `msclaw auth login` and retry.");
+        }
+
+        var config = userConfigLoader.Load();
+        if (TryGetValidAuth(config, DateTimeOffset.UtcNow, out _) is false)
+        {
+            throw new InvalidOperationException("Tunnel mode requires an active login. Run `msclaw auth login` and retry.");
+        }
+    }
+
+    private static bool TryGetValidAuth(UserConfig config, DateTimeOffset nowUtc, out UserAuthConfig? auth)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        auth = config.Auth;
+        if (auth is null
+            || string.IsNullOrWhiteSpace(auth.AccessToken)
+            || auth.ExpiresAtUtc is null
+            || auth.ExpiresAtUtc <= nowUtc.AddMinutes(1))
+        {
+            auth = null;
+            return false;
+        }
+
+        return true;
     }
 
     public static async Task<int> RunGatewayAsync(GatewayOptions options, CancellationToken cancellationToken = default)

@@ -3,6 +3,7 @@
 ```bash
 dotnet tool install -g MsClaw
 msclaw mind scaffold /path/to/my-agent
+msclaw auth login
 msclaw start --mind /path/to/my-agent
 ```
 

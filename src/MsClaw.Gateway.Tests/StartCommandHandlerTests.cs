@@ -33,7 +33,13 @@ public class StartCommandHandlerTests
     {
         GatewayOptions? captured = null;
         var scaffold = new StubMindScaffold(static () => { });
-        var loader = new StubUserConfigLoader("loader-tunnel-id");
+        var loader = new StubUserConfigLoader(
+            "loader-tunnel-id",
+            new UserAuthConfig
+            {
+                AccessToken = "token",
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(10)
+            });
 
         _ = await StartCommand.ExecuteStartAsync(
             "C:\\mind",
@@ -54,6 +60,26 @@ public class StartCommandHandlerTests
         Assert.Equal("loader-tunnel-id", captured.TunnelId);
     }
 
+    [Fact]
+    public async Task ExecuteStartAsync_TunnelEnabledWithoutLogin_Throws()
+    {
+        var scaffold = new StubMindScaffold(static () => { });
+        var loader = new StubUserConfigLoader("loader-tunnel-id", auth: null);
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            StartCommand.ExecuteStartAsync(
+                "C:\\mind",
+                null,
+                (options, cancellationToken) => Task.FromResult(0),
+                scaffold,
+                tunnelEnabled: true,
+                tunnelId: null,
+                userConfigLoader: loader,
+                cancellationToken: CancellationToken.None));
+
+        Assert.Contains("msclaw auth login", ex.Message, StringComparison.Ordinal);
+    }
+
     private sealed class StubMindScaffold(Action onScaffold) : IMindScaffold
     {
         public void Scaffold(string mindRoot)
@@ -62,9 +88,9 @@ public class StartCommandHandlerTests
         }
     }
 
-    private sealed class StubUserConfigLoader(string? tunnelId) : IUserConfigLoader
+    private sealed class StubUserConfigLoader(string? tunnelId, UserAuthConfig? auth) : IUserConfigLoader
     {
-        public UserConfig Load() => new() { TunnelId = tunnelId };
+        public UserConfig Load() => new() { TunnelId = tunnelId, Auth = auth };
 
         public void Save(UserConfig config)
         {

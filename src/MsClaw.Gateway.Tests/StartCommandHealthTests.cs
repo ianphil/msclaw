@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using MsClaw.Core;
 using MsClaw.Gateway.Commands;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Tunnel;
@@ -86,6 +87,7 @@ public class StartCommandHealthTests
         Assert.Contains("/health", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/health/ready", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/api/tunnel/status", routePatterns, StringComparer.Ordinal);
+        Assert.Contains("/api/auth/context", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/v1/responses", routePatterns, StringComparer.Ordinal);
     }
 
@@ -105,6 +107,39 @@ public class StartCommandHealthTests
         Assert.Equal(StatusCodes.Status200OK, statusCode);
         Assert.Contains("alpha-tunnel", body, StringComparison.Ordinal);
         Assert.Contains("devtunnels.ms", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAuthContextResult_WithValidToken_ReturnsAuthenticatedPayload()
+    {
+        var loader = new StubUserConfigLoader(new UserConfig
+        {
+            Auth = new UserAuthConfig
+            {
+                Username = "user@example.com",
+                AccessToken = "access-token",
+                ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(10)
+            }
+        });
+
+        var result = StartCommand.BuildAuthContextResult(loader);
+        var (statusCode, body) = await ExecuteResultAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+        Assert.Contains("user@example.com", body, StringComparison.Ordinal);
+        Assert.Contains("access-token", body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildAuthContextResult_WithoutLogin_ReturnsUnauthorizedGuidance()
+    {
+        var loader = new StubUserConfigLoader(new UserConfig());
+
+        var result = StartCommand.BuildAuthContextResult(loader);
+        var (statusCode, body) = await ExecuteResultAsync(result);
+
+        Assert.Equal(StatusCodes.Status401Unauthorized, statusCode);
+        Assert.Contains("msclaw auth login", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -257,5 +292,16 @@ public class StartCommandHealthTests
         public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public TunnelStatus GetStatus() => status;
+    }
+
+    private sealed class StubUserConfigLoader(UserConfig config) : IUserConfigLoader
+    {
+        public UserConfig Load() => config;
+
+        public void Save(UserConfig updatedConfig)
+        {
+        }
+
+        public string GetConfigPath() => "C:\\temp\\config.json";
     }
 }

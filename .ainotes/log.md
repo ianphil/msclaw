@@ -31,3 +31,10 @@
 - devtunnel: persistent tunnel hosting should use `devtunnel host <tunnelId>` once the port is already registered; passing `-p` during host can trigger "Batch update of ports is not supported" for existing tunnels.
 - devtunnel: `devtunnel port create` is not idempotent by default and returns a conflict when the port already exists, so tunnel startup must treat existing-port conflicts as a success path.
 - startup: enabling `--tunnel` while the mind fails validation causes hosted-service startup failures to cascade; surfacing specific actionable errors (missing CLI/login guidance) improves operator recovery.
+
+## 2026-03-08
+- auth: Device-code flow triggers Entra Conditional Access error 530033 ("device must be managed") even on compliant devices because the flow cannot present the device PRT. Interactive browser with localhost loopback redirect satisfies CA policies.
+- auth: MSAL.NET `AcquireTokenInteractive` with `WithRedirectUri("http://localhost")` and `WithUseEmbeddedWebView(false)` mirrors the msal-node `acquireTokenInteractive` pattern already proven in `scripts/get-token/`.
+- auth: Token cached in `~/.msclaw/config.json` under an `auth` object; gateway serves it via `/api/auth/context` so the browser UI can bootstrap SignalR bearer auth without MSAL.js or redirect URIs.
+- auth: Tunnel startup now hard-fails with actionable guidance when no valid auth session exists — prevents confusing anonymous-access errors at the tunnel layer.
+- cleanup: Removed bundled `msal-browser.min.js` — browser UI no longer runs its own OAuth flow; all auth originates from CLI login.
