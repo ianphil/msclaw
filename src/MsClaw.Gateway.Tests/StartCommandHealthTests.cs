@@ -8,7 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using MsClaw.Core;
-using MsClaw.Gateway.Commands;
+using MsClaw.Gateway.Extensions;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Tunnel;
 using Xunit;
@@ -27,7 +27,7 @@ public class StartCommandHealthTests
             Error = "Validation failed"
         };
 
-        var result = StartCommand.BuildLivenessResult();
+        var result = GatewayEndpointExtensions.BuildLivenessResult();
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status200OK, statusCode);
@@ -43,7 +43,7 @@ public class StartCommandHealthTests
             IsReady = true
         };
 
-        var result = StartCommand.BuildReadinessResult(hostedService);
+        var result = GatewayEndpointExtensions.BuildReadinessResult(hostedService);
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status200OK, statusCode);
@@ -60,7 +60,7 @@ public class StartCommandHealthTests
             Error = "Validation failed"
         };
 
-        var result = StartCommand.BuildReadinessResult(hostedService);
+        var result = GatewayEndpointExtensions.BuildReadinessResult(hostedService);
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, statusCode);
@@ -76,7 +76,7 @@ public class StartCommandHealthTests
         builder.Services.AddSignalR();
         var app = builder.Build();
 
-        StartCommand.MapEndpoints(app);
+        app.MapGatewayEndpoints();
 
         var routePatterns = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(static source => source.Endpoints)
@@ -94,7 +94,7 @@ public class StartCommandHealthTests
     [Fact]
     public async Task BuildTunnelStatusResult_ReturnsTunnelStatePayload()
     {
-        var result = StartCommand.BuildTunnelStatusResult(new StubTunnelManager(new TunnelStatus
+        var result = GatewayEndpointExtensions.BuildTunnelStatusResult(new StubTunnelManager(new TunnelStatus
         {
             Enabled = true,
             IsRunning = true,
@@ -122,7 +122,7 @@ public class StartCommandHealthTests
             }
         });
 
-        var result = StartCommand.BuildAuthContextResult(loader);
+        var result = GatewayEndpointExtensions.BuildAuthContextResult(loader);
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status200OK, statusCode);
@@ -135,7 +135,7 @@ public class StartCommandHealthTests
     {
         var loader = new StubUserConfigLoader(new UserConfig());
 
-        var result = StartCommand.BuildAuthContextResult(loader);
+        var result = GatewayEndpointExtensions.BuildAuthContextResult(loader);
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status401Unauthorized, statusCode);
@@ -149,7 +149,7 @@ public class StartCommandHealthTests
         builder.Services.AddSignalR();
         var app = builder.Build();
 
-        StartCommand.MapEndpoints(app);
+        app.MapGatewayEndpoints();
 
         var routePatterns = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(static source => source.Endpoints)
@@ -181,7 +181,7 @@ public class StartCommandHealthTests
                 .BuildServiceProvider();
             var builder = new ApplicationBuilder(services);
 
-            StartCommand.ConfigurePipeline(builder);
+            builder.UseGatewayPipeline();
             builder.Run(static context =>
             {
                 context.Response.StatusCode = StatusCodes.Status404NotFound;

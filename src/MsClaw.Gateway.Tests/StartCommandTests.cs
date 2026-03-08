@@ -1,4 +1,5 @@
 using MsClaw.Gateway.Commands;
+using MsClaw.Gateway.Extensions;
 using MsClaw.Tunnel;
 using Xunit;
 
@@ -35,7 +36,7 @@ public class StartCommandTests
             PublicUrl = "https://my-msclaw-tunnel.devtunnels.ms"
         };
 
-        var banner = StartCommand.BuildAccessBanner(options, status);
+        var banner = GatewayBannerBuilder.BuildAccessBanner(options, status);
 
         Assert.Contains("LOCAL ACCESS", banner, StringComparison.Ordinal);
         Assert.Contains("REMOTE ACCESS (Dev Tunnel)", banner, StringComparison.Ordinal);
@@ -58,7 +59,7 @@ public class StartCommandTests
             IsRunning = false
         };
 
-        var banner = StartCommand.BuildAccessBanner(options, status);
+        var banner = GatewayBannerBuilder.BuildAccessBanner(options, status);
 
         Assert.Contains("REMOTE ACCESS (Dev Tunnel)", banner, StringComparison.Ordinal);
         Assert.Contains("Start with --tunnel to enable remote access", banner, StringComparison.Ordinal);

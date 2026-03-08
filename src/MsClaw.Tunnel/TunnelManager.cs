@@ -71,52 +71,9 @@ public sealed class TunnelManager : ITunnelManager
         var cliPath = locator.ResolveDevTunnelCliPath();
         await EnsureAuthenticatedAsync(cliPath, cancellationToken);
 
-        var configuredTunnelId = ResolveConfiguredTunnelId();
-        var resolvedTunnelId = string.IsNullOrWhiteSpace(configuredTunnelId)
-            ? await CreateTunnelAsync(cliPath, cancellationToken)
-            : configuredTunnelId;
-
-        await EnsureTunnelAccessAsync(cliPath, resolvedTunnelId, cancellationToken);
-        await EnsureTunnelPortAsync(cliPath, resolvedTunnelId, cancellationToken);
-
-        var urlTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var stderrLines = new List<string>();
-        var handle = executor.CreateHost(cliPath, $"host {resolvedTunnelId}");
-        handle.OutputLine += line =>
-        {
-            logger.LogInformation("devtunnel: {Line}", line);
-            var parsed = TryParsePublicUrl(line);
-            if (parsed is not null)
-            {
-                _ = urlTcs.TrySetResult(parsed);
-            }
-        };
-        handle.ErrorLine += line =>
-        {
-            logger.LogWarning("devtunnel stderr: {Line}", line);
-            lock (stderrLines)
-            {
-                stderrLines.Add(line);
-            }
-        };
-
-        handle.Start();
-
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(TimeSpan.FromSeconds(20));
-
-        string resolvedPublicUrl;
-        try
-        {
-            resolvedPublicUrl = await urlTcs.Task.WaitAsync(timeoutCts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            var stderr = string.Join(Environment.NewLine, stderrLines);
-            await handle.DisposeAsync();
-            throw new InvalidOperationException(
-                $"devtunnel host did not emit a public URL within timeout for tunnel '{resolvedTunnelId}'. {stderr}".Trim());
-        }
+        var resolvedTunnelId = await ResolveTunnelIdAsync(cliPath, cancellationToken);
+        await EnsureTunnelReadyAsync(cliPath, resolvedTunnelId, cancellationToken);
+        var (handle, resolvedPublicUrl) = await StartHostAndWaitForUrlAsync(cliPath, resolvedTunnelId, cancellationToken);
 
         lock (gate)
         {
@@ -170,6 +127,77 @@ public sealed class TunnelManager : ITunnelManager
         }
     }
 
+    /// <summary>
+    /// Resolves the tunnel ID from options/config, or creates a new tunnel if none is configured.
+    /// </summary>
+    private async Task<string> ResolveTunnelIdAsync(string cliPath, CancellationToken cancellationToken)
+    {
+        var configuredTunnelId = ResolveConfiguredTunnelId();
+
+        return string.IsNullOrWhiteSpace(configuredTunnelId)
+            ? await CreateTunnelAsync(cliPath, cancellationToken)
+            : configuredTunnelId;
+    }
+
+    /// <summary>
+    /// Ensures the tunnel has tenant-scoped access and the configured port is registered.
+    /// </summary>
+    private async Task EnsureTunnelReadyAsync(string cliPath, string resolvedTunnelId, CancellationToken cancellationToken)
+    {
+        await EnsureTunnelAccessAsync(cliPath, resolvedTunnelId, cancellationToken);
+        await EnsureTunnelPortAsync(cliPath, resolvedTunnelId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Starts the devtunnel host process and waits for the public URL to appear in stdout.
+    /// </summary>
+    private async Task<(IDevTunnelHostHandle Handle, string PublicUrl)> StartHostAndWaitForUrlAsync(
+        string cliPath,
+        string resolvedTunnelId,
+        CancellationToken cancellationToken)
+    {
+        var urlTcs = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var stderrLines = new List<string>();
+        var handle = executor.CreateHost(cliPath, $"host {resolvedTunnelId}");
+        handle.OutputLine += line =>
+        {
+            logger.LogInformation("devtunnel: {Line}", line);
+            var parsed = TryParsePublicUrl(line);
+            if (parsed is not null)
+            {
+                _ = urlTcs.TrySetResult(parsed);
+            }
+        };
+        handle.ErrorLine += line =>
+        {
+            logger.LogWarning("devtunnel stderr: {Line}", line);
+            lock (stderrLines)
+            {
+                stderrLines.Add(line);
+            }
+        };
+
+        handle.Start();
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(20));
+
+        string resolvedPublicUrl;
+        try
+        {
+            resolvedPublicUrl = await urlTcs.Task.WaitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            var stderr = string.Join(Environment.NewLine, stderrLines);
+            await handle.DisposeAsync();
+            throw new InvalidOperationException(
+                $"devtunnel host did not emit a public URL within timeout for tunnel '{resolvedTunnelId}'. {stderr}".Trim());
+        }
+
+        return (handle, resolvedPublicUrl);
+    }
+
     private async Task EnsureAuthenticatedAsync(string cliPath, CancellationToken cancellationToken)
     {
         var result = await executor.RunAsync(cliPath, "user show", cancellationToken);
@@ -184,6 +212,7 @@ public sealed class TunnelManager : ITunnelManager
         }
 
         var config = configLoader.Load();
+
         return config.TunnelId ?? string.Empty;
     }
 
@@ -237,7 +266,20 @@ public sealed class TunnelManager : ITunnelManager
         return match.Success ? match.Value : null;
     }
 
+    /// <summary>
+    /// Extracts a tunnel ID from command output, trying JSON, regex, and URL-based strategies in order.
+    /// </summary>
     private static string? TryParseTunnelId(string output)
+    {
+        return TryParseTunnelIdFromJson(output)
+            ?? TryParseTunnelIdFromRegex(output)
+            ?? TryParseTunnelIdFromUrl(output);
+    }
+
+    /// <summary>
+    /// Attempts to parse a tunnel ID from JSON output containing a "tunnelId" or "id" property.
+    /// </summary>
+    private static string? TryParseTunnelIdFromJson(string output)
     {
         try
         {
@@ -255,20 +297,31 @@ public sealed class TunnelManager : ITunnelManager
         }
         catch (JsonException)
         {
-            // Best-effort parse fallback below for non-JSON output.
+            // Not JSON — fall through to other strategies.
         }
 
-        var idMatch = TunnelIdRegex.Match(output);
-        if (idMatch.Success)
-        {
-            return idMatch.Groups["id"].Value;
-        }
+        return null;
+    }
 
-        var urlMatch = UrlRegex.Match(output);
-        if (urlMatch.Success && Uri.TryCreate(urlMatch.Value, UriKind.Absolute, out var parsedUri))
+    /// <summary>
+    /// Attempts to extract a tunnel ID using a regex pattern like "tunnel id: abc-123".
+    /// </summary>
+    private static string? TryParseTunnelIdFromRegex(string output)
+    {
+        var match = TunnelIdRegex.Match(output);
+
+        return match.Success ? match.Groups["id"].Value : null;
+    }
+
+    /// <summary>
+    /// Attempts to extract a tunnel ID from the first segment of a URL hostname.
+    /// </summary>
+    private static string? TryParseTunnelIdFromUrl(string output)
+    {
+        var match = UrlRegex.Match(output);
+        if (match.Success && Uri.TryCreate(match.Value, UriKind.Absolute, out var parsedUri))
         {
-            var hostSegment = parsedUri.Host.Split('.', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-            return hostSegment;
+            return parsedUri.Host.Split('.', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
         }
 
         return null;

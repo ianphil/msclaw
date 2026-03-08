@@ -11,17 +11,21 @@ public sealed class MindValidator : IMindValidator
         if (!Directory.Exists(mindRoot))
         {
             errors.Add($"Mind root directory does not exist: {mindRoot}");
-            return new MindValidationResult
-            {
-                Errors = errors,
-                Warnings = warnings,
-                Found = found
-            };
+            return new MindValidationResult { Errors = errors, Warnings = warnings, Found = found };
         }
 
         found.Add(mindRoot);
+        ValidateRoot(mindRoot, errors, found);
+        ValidateWorkingMemory(mindRoot, errors, warnings, found);
+        ValidateOptionalStructure(mindRoot, warnings, found);
 
-        var soulPath = Path.Combine(mindRoot, "SOUL.md");
+        return new MindValidationResult { Errors = errors, Warnings = warnings, Found = found };
+    }
+
+    /// <summary>Checks that the required SOUL.md file exists in the mind root.</summary>
+    private static void ValidateRoot(string mindRoot, List<string> errors, List<string> found)
+    {
+        var soulPath = Path.Combine(mindRoot, MindPaths.SoulFile);
         if (File.Exists(soulPath))
         {
             found.Add(soulPath);
@@ -30,35 +34,36 @@ public sealed class MindValidator : IMindValidator
         {
             errors.Add($"Required file missing: {soulPath}");
         }
+    }
 
-        var workingMemoryPath = Path.Combine(mindRoot, ".working-memory");
+    /// <summary>Checks that the .working-memory/ directory and its expected files exist.</summary>
+    private static void ValidateWorkingMemory(string mindRoot, List<string> errors, List<string> warnings, List<string> found)
+    {
+        var workingMemoryPath = Path.Combine(mindRoot, MindPaths.WorkingMemoryDir);
         if (Directory.Exists(workingMemoryPath))
         {
             found.Add(workingMemoryPath);
 
-            CheckOptionalFile(workingMemoryPath, "memory.md", warnings, found);
-            CheckOptionalFile(workingMemoryPath, "rules.md", warnings, found);
-            CheckOptionalFile(workingMemoryPath, "log.md", warnings, found);
+            CheckOptionalFile(workingMemoryPath, MindPaths.MemoryFile, warnings, found);
+            CheckOptionalFile(workingMemoryPath, MindPaths.RulesFile, warnings, found);
+            CheckOptionalFile(workingMemoryPath, MindPaths.LogFile, warnings, found);
         }
         else
         {
             errors.Add($"Required directory missing: {workingMemoryPath}");
         }
+    }
 
-        CheckOptionalDirectory(mindRoot, ".github", "agents", warnings, found);
-        CheckOptionalDirectory(mindRoot, ".github", "skills", warnings, found);
-        CheckOptionalDirectory(mindRoot, "domains", warnings, found);
-        CheckOptionalDirectory(mindRoot, "initiatives", warnings, found);
-        CheckOptionalDirectory(mindRoot, "expertise", warnings, found);
-        CheckOptionalDirectory(mindRoot, "inbox", warnings, found);
-        CheckOptionalDirectory(mindRoot, "Archive", warnings, found);
-
-        return new MindValidationResult
-        {
-            Errors = errors,
-            Warnings = warnings,
-            Found = found
-        };
+    /// <summary>Checks optional directories such as agents, skills, domains, and archive.</summary>
+    private static void ValidateOptionalStructure(string mindRoot, List<string> warnings, List<string> found)
+    {
+        CheckOptionalDirectory(mindRoot, MindPaths.GitHubDir, MindPaths.AgentsDir, warnings, found);
+        CheckOptionalDirectory(mindRoot, MindPaths.GitHubDir, MindPaths.SkillsDir, warnings, found);
+        CheckOptionalDirectory(mindRoot, MindPaths.DomainsDir, null, warnings, found);
+        CheckOptionalDirectory(mindRoot, MindPaths.InitiativesDir, null, warnings, found);
+        CheckOptionalDirectory(mindRoot, MindPaths.ExpertiseDir, null, warnings, found);
+        CheckOptionalDirectory(mindRoot, MindPaths.InboxDir, null, warnings, found);
+        CheckOptionalDirectory(mindRoot, MindPaths.ArchiveDir, null, warnings, found);
     }
 
     private static void CheckOptionalFile(string directory, string fileName, ICollection<string> warnings, ICollection<string> found)
@@ -72,9 +77,6 @@ public sealed class MindValidator : IMindValidator
 
         warnings.Add($"Optional file missing: {path}");
     }
-
-    private static void CheckOptionalDirectory(string root, string dirName, ICollection<string> warnings, ICollection<string> found)
-        => CheckOptionalDirectory(root, dirName, null, warnings, found);
 
     private static void CheckOptionalDirectory(string root, string dirName, string? childDirName, ICollection<string> warnings, ICollection<string> found)
     {

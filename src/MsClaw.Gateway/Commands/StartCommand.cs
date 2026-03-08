@@ -1,24 +1,21 @@
 using System.CommandLine;
-using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Identity.Web;
 using MsClaw.Core;
-using MsClaw.Gateway.Hosting;
-using MsClaw.Gateway.Hubs;
-using MsClaw.Gateway.Services;
-using MsClaw.OpenResponses;
+using MsClaw.Gateway.Extensions;
 using MsClaw.Tunnel;
 
 namespace MsClaw.Gateway.Commands;
 
+/// <summary>
+/// Defines the <c>start</c> CLI command and orchestrates gateway startup.
+/// </summary>
 public static class StartCommand
 {
+    /// <summary>
+    /// Creates the <c>start</c> command with its CLI options.
+    /// </summary>
     public static Command Create()
     {
         var command = new Command("start", "Start the gateway daemon");
@@ -65,140 +62,9 @@ public static class StartCommand
         return command;
     }
 
-    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration, GatewayOptions options)
-    {
-        services.AddAuthentication()
-            .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
-        services.Configure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>("Bearer", jwtOptions =>
-        {
-            var existingOnMessageReceived = jwtOptions.Events?.OnMessageReceived;
-            jwtOptions.Events ??= new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents();
-            jwtOptions.Events.OnMessageReceived = async context =>
-            {
-                if (existingOnMessageReceived is not null)
-                {
-                    await existingOnMessageReceived(context);
-                }
-
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/gateway"))
-                {
-                    context.Token = accessToken;
-                }
-            };
-        });
-        services.AddAuthorization();
-        services.AddSignalR();
-        services.AddSingleton(options);
-        services.AddSingleton<IUserConfigLoader, UserConfigLoader>();
-        services.AddSingleton<IMindValidator, MindValidator>();
-        services.AddSingleton<IIdentityLoader, IdentityLoader>();
-        services.AddSingleton<IMindScaffold, MindScaffold>();
-        services.AddSingleton<IMindReader>(_ => new MindReader(options.MindPath));
-        services.AddSingleton<IDevTunnelLocator, DevTunnelLocator>();
-        services.AddSingleton<ITunnelManager>(serviceProvider =>
-            new TunnelManager(
-                serviceProvider.GetRequiredService<IDevTunnelLocator>(),
-                serviceProvider.GetRequiredService<IUserConfigLoader>(),
-                new TunnelManagerOptions
-                {
-                    Enabled = options.TunnelEnabled,
-                    LocalPort = options.Port,
-                    TunnelId = options.TunnelId
-                }));
-        services.AddSingleton<CallerRegistry>();
-        services.AddSingleton<IConcurrencyGate>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
-        services.AddSingleton<ISessionPool, SessionPool>();
-        services.AddSingleton<GatewayHostedService>();
-        services.AddSingleton<GatewayTunnelHostedService>();
-        services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
-        services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
-        services.AddSingleton<AgentMessageService>();
-        services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
-        services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
-        services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayTunnelHostedService>());
-    }
-
-    public static IResult BuildLivenessResult()
-    {
-        return Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK);
-    }
-
-    public static IResult BuildReadinessResult(IGatewayHostedService hostedService)
-    {
-        return hostedService.IsReady
-            ? Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK)
-            : Results.Json(
-                new { status = "Unhealthy", component = "hosted-service", error = hostedService.Error },
-                statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
-    public static IResult BuildTunnelStatusResult(ITunnelManager tunnelManager)
-    {
-        var status = tunnelManager.GetStatus();
-        return Results.Json(new
-        {
-            enabled = status.Enabled,
-            running = status.IsRunning,
-            tunnelId = status.TunnelId,
-            publicUrl = status.PublicUrl,
-            error = status.Error
-        }, statusCode: StatusCodes.Status200OK);
-    }
-
     /// <summary>
-    /// Builds an auth-context response used by the browser UI to bootstrap bearer-authenticated calls.
+    /// Validates CLI inputs, resolves tunnel settings, and delegates to the gateway runner.
     /// </summary>
-    public static IResult BuildAuthContextResult(IUserConfigLoader userConfigLoader)
-    {
-        ArgumentNullException.ThrowIfNull(userConfigLoader);
-
-        var config = userConfigLoader.Load();
-        if (TryGetValidAuth(config, DateTimeOffset.UtcNow, out var authConfig) is false)
-        {
-            return Results.Json(
-                new
-                {
-                    authenticated = false,
-                    message = "No active login session. Run `msclaw auth login` and restart the gateway."
-                },
-                statusCode: StatusCodes.Status401Unauthorized);
-        }
-
-        return Results.Json(
-            new
-            {
-                authenticated = true,
-                username = authConfig!.Username,
-                accessToken = authConfig.AccessToken,
-                expiresAtUtc = authConfig.ExpiresAtUtc
-            },
-            statusCode: StatusCodes.Status200OK);
-    }
-
-    public static void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapGet("/health", () => BuildLivenessResult());
-        endpoints.MapGet("/health/ready", ([FromServices] IGatewayHostedService hostedService) => BuildReadinessResult(hostedService));
-        endpoints.MapGet("/api/tunnel/status", ([FromServices] ITunnelManager tunnelManager) => BuildTunnelStatusResult(tunnelManager));
-        endpoints.MapGet("/api/auth/context", ([FromServices] IUserConfigLoader userConfigLoader) => BuildAuthContextResult(userConfigLoader));
-        endpoints.MapHub<GatewayHub>("/gateway");
-        endpoints.MapOpenResponses();
-    }
-
-    /// <summary>
-    /// Configures middleware required to serve the gateway's static chat assets.
-    /// Splitting this from endpoint mapping keeps the pipeline testable without starting the full host.
-    /// </summary>
-    public static void ConfigurePipeline(IApplicationBuilder application)
-    {
-        application.UseDefaultFiles();
-        application.UseStaticFiles();
-        application.UseAuthentication();
-        application.UseAuthorization();
-    }
-
     public static async Task<int> ExecuteStartAsync(
         string? mindPath,
         string? newMindPath,
@@ -235,9 +101,33 @@ public static class StartCommand
         return await runGatewayAsync(options, cancellationToken);
     }
 
+    /// <summary>
+    /// Builds and runs the ASP.NET Core WebApplication that hosts the gateway.
+    /// </summary>
+    public static async Task<int> RunGatewayAsync(GatewayOptions options, CancellationToken cancellationToken = default)
+    {
+        var assemblyDir = Path.GetDirectoryName(typeof(StartCommand).Assembly.Location)!;
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            WebRootPath = Path.Combine(assemblyDir, "wwwroot")
+        });
+        builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
+        builder.Services.AddGatewayServices(builder.Configuration, options);
+        var app = builder.Build();
+        app.UseGatewayPipeline();
+        app.MapGatewayEndpoints();
+        await app.StartAsync(cancellationToken);
+        var tunnelManager = app.Services.GetRequiredService<ITunnelManager>();
+        Console.WriteLine(GatewayBannerBuilder.BuildAccessBanner(options, tunnelManager.GetStatus()));
+        await app.WaitForShutdownAsync(cancellationToken);
+
+        return 0;
+    }
+
     private static bool IsTunnelEnabledFromEnvironment()
     {
         var value = Environment.GetEnvironmentVariable("MSCLAW_TUNNEL");
+
         return string.Equals(value, "1", StringComparison.Ordinal)
             || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
             || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
@@ -277,97 +167,9 @@ public static class StartCommand
         }
 
         var config = userConfigLoader.Load();
-        if (TryGetValidAuth(config, DateTimeOffset.UtcNow, out _) is false)
+        if (GatewayEndpointExtensions.TryGetValidAuth(config, DateTimeOffset.UtcNow, out _) is false)
         {
             throw new InvalidOperationException("Tunnel mode requires an active login. Run `msclaw auth login` and retry.");
         }
-    }
-
-    private static bool TryGetValidAuth(UserConfig config, DateTimeOffset nowUtc, out UserAuthConfig? auth)
-    {
-        ArgumentNullException.ThrowIfNull(config);
-
-        auth = config.Auth;
-        if (auth is null
-            || string.IsNullOrWhiteSpace(auth.AccessToken)
-            || auth.ExpiresAtUtc is null
-            || auth.ExpiresAtUtc <= nowUtc.AddMinutes(1))
-        {
-            auth = null;
-            return false;
-        }
-
-        return true;
-    }
-
-    public static async Task<int> RunGatewayAsync(GatewayOptions options, CancellationToken cancellationToken = default)
-    {
-        var assemblyDir = Path.GetDirectoryName(typeof(StartCommand).Assembly.Location)!;
-        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
-        {
-            WebRootPath = Path.Combine(assemblyDir, "wwwroot")
-        });
-        builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
-        ConfigureServices(builder.Services, builder.Configuration, options);
-        var app = builder.Build();
-        ConfigurePipeline(app);
-        MapEndpoints(app);
-        await app.StartAsync(cancellationToken);
-        var tunnelManager = app.Services.GetRequiredService<ITunnelManager>();
-        Console.WriteLine(BuildAccessBanner(options, tunnelManager.GetStatus()));
-        await app.WaitForShutdownAsync(cancellationToken);
-
-        return 0;
-    }
-
-    /// <summary>
-    /// Builds a startup banner that lists local and remote gateway access endpoints.
-    /// </summary>
-    public static string BuildAccessBanner(GatewayOptions options, TunnelStatus tunnelStatus)
-    {
-        var localBaseUrl = $"http://{options.Host}:{options.Port}";
-        var buffer = new StringBuilder();
-        buffer.AppendLine("MSCLAW GATEWAY READY");
-        buffer.AppendLine("===================");
-        buffer.AppendLine();
-        buffer.AppendLine("LOCAL ACCESS");
-        AppendAccessLine(buffer, "UI (browser)", $"{localBaseUrl}/", "Local chat interface");
-        AppendAccessLine(buffer, "OpenResponses API", $"{localBaseUrl}/v1/responses", "HTTP JSON/SSE endpoint");
-        AppendAccessLine(buffer, "SignalR Hub", $"{localBaseUrl}/gateway", "Realtime streaming channel");
-        AppendAccessLine(buffer, "Health", $"{localBaseUrl}/health", "Liveness probe");
-        AppendAccessLine(buffer, "Readiness", $"{localBaseUrl}/health/ready", "Runtime readiness");
-        AppendAccessLine(buffer, "Tunnel Status", $"{localBaseUrl}/api/tunnel/status", "Remote URL + tunnel state");
-        buffer.AppendLine();
-        buffer.AppendLine("REMOTE ACCESS (Dev Tunnel)");
-
-        if (tunnelStatus.Enabled && string.IsNullOrWhiteSpace(tunnelStatus.PublicUrl) is false)
-        {
-            var remoteBaseUrl = tunnelStatus.PublicUrl.TrimEnd('/');
-            AppendAccessLine(buffer, "Tunnel URL", remoteBaseUrl, "Public HTTPS entrypoint");
-            AppendAccessLine(buffer, "Remote UI", $"{remoteBaseUrl}/", "Browser UI through tunnel");
-            AppendAccessLine(buffer, "Remote API", $"{remoteBaseUrl}/v1/responses", "OpenResponses endpoint through tunnel");
-            AppendAccessLine(buffer, "Remote SignalR", $"{remoteBaseUrl}/gateway", "SignalR endpoint through tunnel");
-        }
-        else
-        {
-            AppendAccessLine(buffer, "Tunnel URL", "(disabled)", "Start with --tunnel to enable remote access");
-        }
-
-        buffer.AppendLine();
-        buffer.AppendLine("NOTES");
-        buffer.AppendLine("  - Tunnel auth: Entra tenant access + gateway JWT auth.");
-        buffer.AppendLine("  - Press Ctrl+C to stop gateway and devtunnel.");
-
-        return buffer.ToString();
-    }
-
-    private static void AppendAccessLine(StringBuilder buffer, string label, string endpoint, string description)
-    {
-        buffer.Append("  ");
-        buffer.Append(label.PadRight(18, ' '));
-        buffer.Append(" ");
-        buffer.Append(endpoint.PadRight(40, ' '));
-        buffer.Append(" ");
-        buffer.AppendLine(description);
     }
 }

@@ -19,10 +19,11 @@ public static class SessionEventBridge
     {
         ArgumentNullException.ThrowIfNull(session);
 
-        var channel = Channel.CreateUnbounded<SessionEvent>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<SessionEvent>(new BoundedChannelOptions(500)
         {
             SingleReader = true,
-            SingleWriter = false
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait
         });
         var cancellationRegistration = cancellationToken.Register(() => channel.Writer.TryComplete());
         var sessionSubscription = session.On(sessionEvent =>

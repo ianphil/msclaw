@@ -127,6 +127,36 @@ public class SessionPoolTests
             });
     }
 
+    [Fact]
+    public async Task SessionPool_ExpiredSession_IsReaped()
+    {
+        var session = new StubGatewaySession("session-1");
+        await using var sut = new SessionPool(
+            sessionTimeout: TimeSpan.FromMilliseconds(50),
+            reapInterval: TimeSpan.FromMilliseconds(100));
+
+        _ = await sut.GetOrCreateAsync("caller-1", _ => Task.FromResult<IGatewaySession>(session));
+        await Task.Delay(250);
+
+        Assert.Null(sut.TryGet("caller-1"));
+        Assert.True(session.Disposed);
+    }
+
+    [Fact]
+    public async Task SessionPool_ActiveSession_NotReaped()
+    {
+        var session = new StubGatewaySession("session-1");
+        await using var sut = new SessionPool(
+            sessionTimeout: TimeSpan.FromSeconds(5),
+            reapInterval: TimeSpan.FromMilliseconds(100));
+
+        _ = await sut.GetOrCreateAsync("caller-1", _ => Task.FromResult<IGatewaySession>(session));
+        await Task.Delay(200);
+
+        Assert.NotNull(sut.TryGet("caller-1"));
+        Assert.False(session.Disposed);
+    }
+
     private sealed class StubGatewaySession(string sessionId) : IGatewaySession
     {
         public bool Disposed { get; private set; }

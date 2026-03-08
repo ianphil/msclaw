@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Core;
-using MsClaw.Gateway.Commands;
+using MsClaw.Gateway.Extensions;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
 using MsClaw.Tunnel;
@@ -29,7 +29,7 @@ public class StartCommandDiTests
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
+        services.AddGatewayServices(CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
         Assert.NotNull(provider.GetService<IMindValidator>());
@@ -45,7 +45,7 @@ public class StartCommandDiTests
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
+        services.AddGatewayServices(CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
         var first = provider.GetRequiredService<IConcurrencyGate>();
@@ -60,7 +60,7 @@ public class StartCommandDiTests
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
+        services.AddGatewayServices(CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
         var first = provider.GetRequiredService<ISessionPool>();
@@ -75,7 +75,7 @@ public class StartCommandDiTests
         var services = new ServiceCollection();
         var options = new GatewayOptions { MindPath = "C:\\mind" };
 
-        StartCommand.ConfigureServices(services, CreateTestConfiguration(), options);
+        services.AddGatewayServices(CreateTestConfiguration(), options);
 
         await using var provider = services.BuildServiceProvider();
 

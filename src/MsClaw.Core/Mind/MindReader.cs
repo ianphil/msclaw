@@ -20,7 +20,7 @@ public sealed class MindReader : IMindReader
             return;
         }
 
-        var process = new Process
+        using var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
@@ -33,7 +33,21 @@ public sealed class MindReader : IMindReader
         };
 
         process.Start();
+
+        // Read redirected streams before WaitForExitAsync to avoid pipe buffer deadlocks.
+        var stderrTask = process.StandardError.ReadToEndAsync(cancellationToken);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+
         await process.WaitForExitAsync(cancellationToken);
+
+        var stderr = await stderrTask;
+        _ = await stdoutTask;
+
+        if (process.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"git pull failed (exit code {process.ExitCode}): {stderr}");
+        }
     }
 
     public async Task<string> ReadFileAsync(string path, CancellationToken cancellationToken = default)

@@ -30,7 +30,7 @@ public class MindScaffoldTests
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "initiatives")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "expertise")));
         Assert.True(Directory.Exists(Path.Combine(mindRoot, "inbox")));
-        Assert.True(Directory.Exists(Path.Combine(mindRoot, "Archive")));
+        Assert.True(Directory.Exists(Path.Combine(mindRoot, "archive")));
     }
 
     [Fact]

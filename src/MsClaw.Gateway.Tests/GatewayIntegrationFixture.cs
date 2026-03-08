@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MsClaw.Gateway.Commands;
+using MsClaw.Gateway.Extensions;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
 using MsClaw.OpenResponses;
@@ -73,7 +73,7 @@ public sealed class GatewayIntegrationFixture : IAsyncLifetime
         app.Urls.Add("http://127.0.0.1:0");
         app.UseAuthentication();
         app.UseAuthorization();
-        StartCommand.MapEndpoints(app);
+        app.MapGatewayEndpoints();
         await app.StartAsync();
 
         var server = app.Services.GetRequiredService<IServer>();

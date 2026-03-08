@@ -9,6 +9,19 @@ public static class CliLocator
 
     internal static string ResolveCliPath(string binaryName)
     {
+        var candidates = FindCandidatesOnPath(binaryName);
+        if (candidates.Length == 0)
+        {
+            throw new InvalidOperationException(
+                $"Copilot CLI not found on PATH. " +
+                $"Ensure '{binaryName}' is installed and available on your system PATH.");
+        }
+
+        return SelectPreferredCandidate(candidates);
+    }
+
+    private static string[] FindCandidatesOnPath(string binaryName)
+    {
         var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         var command = isWindows ? "where" : "which";
 
@@ -31,28 +44,13 @@ public static class CliLocator
 
             if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
             {
-                throw new InvalidOperationException(
-                    $"Copilot CLI not found on PATH. " +
-                    $"Ensure '{binaryName}' is installed and available on your system PATH.");
+                return [];
             }
 
-            var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+            return output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
                 .Select(l => l.Trim())
                 .Where(l => !string.IsNullOrWhiteSpace(l))
                 .ToArray();
-
-            // On Windows, 'where' may return multiple matches (e.g. bare script, .cmd, .exe).
-            // Prefer .exe, then .cmd — bare extensionless scripts are not directly executable.
-            if (isWindows)
-            {
-                var exe = lines.FirstOrDefault(l => l.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
-                if (exe != null) return exe;
-
-                var cmd = lines.FirstOrDefault(l => l.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase));
-                if (cmd != null) return cmd;
-            }
-
-            return lines[0];
         }
         catch (InvalidOperationException)
         {
@@ -63,5 +61,23 @@ public static class CliLocator
             throw new InvalidOperationException(
                 $"Failed to locate Copilot CLI on PATH using '{command} {binaryName}': {ex.Message}", ex);
         }
+    }
+
+    /// <summary>
+    /// On Windows, prefers .exe over .cmd over bare scripts.
+    /// On other platforms, returns the first candidate.
+    /// </summary>
+    private static string SelectPreferredCandidate(string[] candidates)
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            var exe = candidates.FirstOrDefault(l => l.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+            if (exe is not null) return exe;
+
+            var cmd = candidates.FirstOrDefault(l => l.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase));
+            if (cmd is not null) return cmd;
+        }
+
+        return candidates[0];
     }
 }
