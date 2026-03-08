@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Identity.Web;
 using MsClaw.Core;
+using MsClaw.Gateway.Auth;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Hubs;
 using MsClaw.Gateway.Services;
@@ -60,6 +61,8 @@ public static class GatewayServiceExtensions
         services.AddSingleton<IIdentityLoader, IdentityLoader>();
         services.AddSingleton<IMindScaffold, MindScaffold>();
         services.AddSingleton<IMindReader>(_ => new MindReader(options.MindPath));
+        services.AddSingleton<IMsalPublicClientFactory, MsalPublicClientFactory>();
+        services.AddSingleton<ITokenRefresher, MsalSilentTokenRefresher>();
         services.AddSingleton<IDevTunnelLocator, DevTunnelLocator>();
         services.AddSingleton<ITunnelManager>(serviceProvider =>
             new TunnelManager(
@@ -83,6 +86,7 @@ public static class GatewayServiceExtensions
         services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayTunnelHostedService>());
+        services.AddHostedService<TokenRefreshService>();
 
         return services;
     }

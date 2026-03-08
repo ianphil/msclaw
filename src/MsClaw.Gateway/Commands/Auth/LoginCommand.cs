@@ -2,6 +2,7 @@ using System.CommandLine;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Identity.Client;
 using MsClaw.Core;
+using MsClaw.Gateway.Auth;
 
 namespace MsClaw.Gateway.Commands.Auth;
 
@@ -10,8 +11,6 @@ namespace MsClaw.Gateway.Commands.Auth;
 /// </summary>
 public static class LoginCommand
 {
-    private static readonly string[] LoginScopes = ["openid", "profile", "offline_access"];
-
     /// <summary>
     /// Creates the <c>msclaw auth login</c> command.
     /// </summary>
@@ -23,7 +22,7 @@ public static class LoginCommand
             return await ExecuteLoginAsync(
                 BuildConfiguration(),
                 new UserConfigLoader(),
-                new MsalInteractiveBrowserAuthenticator(),
+                new MsalInteractiveBrowserAuthenticator(new MsalPublicClientFactory()),
                 Console.Out,
                 cancellationToken);
         });
@@ -55,9 +54,7 @@ public static class LoginCommand
             return 1;
         }
 
-        var scopes = LoginScopes
-            .Concat([$"api://{clientId}/access_as_user"])
-            .ToArray();
+        var scopes = AuthScopes.Build(clientId);
 
         try
         {
@@ -149,6 +146,16 @@ public sealed class LoginResult
 
 internal sealed class MsalInteractiveBrowserAuthenticator : IInteractiveAuthenticator
 {
+    private readonly IMsalPublicClientFactory msalClientFactory;
+
+    /// <summary>
+    /// Creates the interactive authenticator using the provided MSAL client factory.
+    /// </summary>
+    public MsalInteractiveBrowserAuthenticator(IMsalPublicClientFactory msalClientFactory)
+    {
+        this.msalClientFactory = msalClientFactory;
+    }
+
     /// <summary>
     /// Opens the system browser for Entra interactive login with localhost loopback redirect.
     /// This satisfies Conditional Access device-compliance policies that block device-code flow.
@@ -160,11 +167,7 @@ internal sealed class MsalInteractiveBrowserAuthenticator : IInteractiveAuthenti
         Func<string, Task> onStatusMessage,
         CancellationToken cancellationToken)
     {
-        var authority = $"https://login.microsoftonline.com/{tenantId}";
-        var app = PublicClientApplicationBuilder.Create(clientId)
-            .WithAuthority(authority)
-            .WithRedirectUri("http://localhost")
-            .Build();
+        var app = await msalClientFactory.CreateAsync(tenantId, clientId, cancellationToken);
 
         var authResult = await app.AcquireTokenInteractive(scopes)
             .WithUseEmbeddedWebView(false)

@@ -16,6 +16,11 @@ public interface IGatewayHubClient
     /// Receives a presence update for connected operators.
     /// </summary>
     Task ReceivePresence(PresenceSnapshot presence);
+
+    /// <summary>
+    /// Receives refreshed authentication context when gateway rotates access tokens.
+    /// </summary>
+    Task ReceiveAuthContext(GatewayAuthContext authContext);
 }
 
 /// <summary>
@@ -23,3 +28,12 @@ public interface IGatewayHubClient
 /// </summary>
 /// <param name="ConnectionCount">Gets the number of active gateway connections.</param>
 public sealed record PresenceSnapshot(int ConnectionCount);
+
+/// <summary>
+/// Represents refreshed auth state pushed to browser clients.
+/// </summary>
+/// <param name="Authenticated">Gets whether the user is authenticated.</param>
+/// <param name="Username">Gets the authenticated username.</param>
+/// <param name="AccessToken">Gets the current bearer token.</param>
+/// <param name="ExpiresAtUtc">Gets the token expiry in UTC.</param>
+public sealed record GatewayAuthContext(bool Authenticated, string? Username, string? AccessToken, DateTimeOffset? ExpiresAtUtc);

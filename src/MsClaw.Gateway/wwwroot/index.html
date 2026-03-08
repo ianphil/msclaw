@@ -137,6 +137,16 @@
             setRunActive(false);
         });
 
+        connection.on("ReceiveAuthContext", (nextAuthContext) => {
+            if (!nextAuthContext || !nextAuthContext.authenticated) {
+                return;
+            }
+
+            authContext = nextAuthContext;
+            userEmail.textContent = authContext.username ?? "Authenticated user";
+            appendActivity(`Token refreshed. Expires at ${authContext.expiresAtUtc ?? "unknown"}.`, "success");
+        });
+
         // ─── Send message ───
 
         promptForm.addEventListener("submit", async (event) => {
