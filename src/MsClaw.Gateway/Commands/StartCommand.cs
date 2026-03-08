@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Core;
 using MsClaw.Gateway.Extensions;
@@ -111,6 +112,10 @@ public static class StartCommand
         {
             WebRootPath = Path.Combine(assemblyDir, "wwwroot")
         });
+        builder.Configuration.AddJsonFile(
+            Path.Combine(assemblyDir, "appsettings.json"),
+            optional: true,
+            reloadOnChange: false);
         builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
         builder.Services.AddGatewayServices(builder.Configuration, options);
         var app = builder.Build();

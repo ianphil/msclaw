@@ -22,27 +22,36 @@ public static class GatewayServiceExtensions
     /// </summary>
     public static IServiceCollection AddGatewayServices(this IServiceCollection services, IConfiguration configuration, GatewayOptions options)
     {
-        services.AddAuthentication()
-            .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
-        services.Configure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>("Bearer", jwtOptions =>
+        var azureAdSection = configuration.GetSection("AzureAd");
+        var clientId = azureAdSection["ClientId"];
+        if (string.IsNullOrWhiteSpace(clientId) is false)
         {
-            var existingOnMessageReceived = jwtOptions.Events?.OnMessageReceived;
-            jwtOptions.Events ??= new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents();
-            jwtOptions.Events.OnMessageReceived = async context =>
+            services.AddAuthentication()
+                .AddMicrosoftIdentityWebApi(azureAdSection);
+            services.Configure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>("Bearer", jwtOptions =>
             {
-                if (existingOnMessageReceived is not null)
+                var existingOnMessageReceived = jwtOptions.Events?.OnMessageReceived;
+                jwtOptions.Events ??= new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents();
+                jwtOptions.Events.OnMessageReceived = async context =>
                 {
-                    await existingOnMessageReceived(context);
-                }
+                    if (existingOnMessageReceived is not null)
+                    {
+                        await existingOnMessageReceived(context);
+                    }
 
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/gateway"))
-                {
-                    context.Token = accessToken;
-                }
-            };
-        });
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+                    if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/gateway"))
+                    {
+                        context.Token = accessToken;
+                    }
+                };
+            });
+        }
+        else
+        {
+            services.AddAuthentication();
+        }
         services.AddAuthorization();
         services.AddSignalR();
         services.AddSingleton(options);
