@@ -38,3 +38,5 @@
 - auth: Token cached in `~/.msclaw/config.json` under an `auth` object; gateway serves it via `/api/auth/context` so the browser UI can bootstrap SignalR bearer auth without MSAL.js or redirect URIs.
 - auth: Tunnel startup now hard-fails with actionable guidance when no valid auth session exists — prevents confusing anonymous-access errors at the tunnel layer.
 - cleanup: Removed bundled `msal-browser.min.js` — browser UI no longer runs its own OAuth flow; all auth originates from CLI login.
+- security: Replaced `/api/auth/context` endpoint with server-side token injection into index.html via AuthContextMiddleware — eliminates unauthenticated token endpoint and raw token in API response.
+- security: Removed `--tenant` from `devtunnel access create` — tunnel access now defaults to private (owner-only) instead of granting tenant-wide access.

@@ -16,14 +16,13 @@ namespace MsClaw.Gateway.Extensions;
 public static class GatewayEndpointExtensions
 {
     /// <summary>
-    /// Maps health, tunnel, auth, SignalR, and OpenResponses endpoints onto the gateway.
+    /// Maps health, tunnel, SignalR, and OpenResponses endpoints onto the gateway.
     /// </summary>
     public static IEndpointRouteBuilder MapGatewayEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapGet("/health", () => BuildLivenessResult());
         endpoints.MapGet("/health/ready", ([FromServices] IGatewayHostedService hostedService) => BuildReadinessResult(hostedService));
         endpoints.MapGet("/api/tunnel/status", ([FromServices] ITunnelManager tunnelManager) => BuildTunnelStatusResult(tunnelManager));
-        endpoints.MapGet("/api/auth/context", ([FromServices] IUserConfigLoader userConfigLoader) => BuildAuthContextResult(userConfigLoader));
         endpoints.MapHub<GatewayHub>("/gateway");
         endpoints.MapOpenResponses();
 
@@ -32,10 +31,12 @@ public static class GatewayEndpointExtensions
 
     /// <summary>
     /// Configures middleware required to serve the gateway's static chat assets.
-    /// Splitting this from endpoint mapping keeps the pipeline testable without starting the full host.
+    /// The <see cref="AuthContextMiddleware"/> injects auth context into <c>index.html</c>
+    /// before the static files middleware serves it, removing the need for a token endpoint.
     /// </summary>
     public static IApplicationBuilder UseGatewayPipeline(this IApplicationBuilder application)
     {
+        application.UseMiddleware<AuthContextMiddleware>();
         application.UseDefaultFiles();
         application.UseStaticFiles();
         application.UseAuthentication();
@@ -79,36 +80,6 @@ public static class GatewayEndpointExtensions
             publicUrl = status.PublicUrl,
             error = status.Error
         }, statusCode: StatusCodes.Status200OK);
-    }
-
-    /// <summary>
-    /// Builds an auth-context response used by the browser UI to bootstrap bearer-authenticated calls.
-    /// </summary>
-    public static IResult BuildAuthContextResult(IUserConfigLoader userConfigLoader)
-    {
-        ArgumentNullException.ThrowIfNull(userConfigLoader);
-
-        var config = userConfigLoader.Load();
-        if (TryGetValidAuth(config, DateTimeOffset.UtcNow, out var authConfig) is false)
-        {
-            return Results.Json(
-                new
-                {
-                    authenticated = false,
-                    message = "No active login session. Run `msclaw auth login` and restart the gateway."
-                },
-                statusCode: StatusCodes.Status401Unauthorized);
-        }
-
-        return Results.Json(
-            new
-            {
-                authenticated = true,
-                username = authConfig!.Username,
-                accessToken = authConfig.AccessToken,
-                expiresAtUtc = authConfig.ExpiresAtUtc
-            },
-            statusCode: StatusCodes.Status200OK);
     }
 
     /// <summary>

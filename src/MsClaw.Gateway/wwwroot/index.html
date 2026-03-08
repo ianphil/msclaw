@@ -76,7 +76,7 @@
 
         let activeSubscription = null;
         let activeAssistantMessage = null;
-        let authContext = null;
+        let authContext = window.__AUTH_CONTEXT;
 
         // ─── Textarea: auto-resize + Enter to send ───
 
@@ -216,7 +216,9 @@
 
         async function initialize() {
             try {
-                authContext = await loadAuthContext();
+                if (!authContext || !authContext.authenticated) {
+                    throw new Error("Run `msclaw auth login` before opening the gateway UI.");
+                }
                 userEmail.textContent = authContext.username ?? "Authenticated user";
                 appendActivity(`Signed in as ${userEmail.textContent}.`, "success");
                 await ensureConnected();
@@ -238,16 +240,6 @@
             setConnectionStatus("Connecting…");
             await connection.start();
             setConnectionStatus("Connected", "ok");
-        }
-
-        async function loadAuthContext() {
-            const response = await fetch("/api/auth/context", { method: "GET" });
-            const payload = await response.json();
-            if (!response.ok || !payload.authenticated) {
-                throw new Error(payload.message ?? "Run `msclaw auth login` before opening the gateway UI.");
-            }
-
-            return payload;
         }
 
         // ─── Event handling ───

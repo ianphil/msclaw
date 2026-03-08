@@ -87,7 +87,6 @@ public class StartCommandHealthTests
         Assert.Contains("/health", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/health/ready", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/api/tunnel/status", routePatterns, StringComparer.Ordinal);
-        Assert.Contains("/api/auth/context", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/v1/responses", routePatterns, StringComparer.Ordinal);
     }
 
@@ -107,39 +106,6 @@ public class StartCommandHealthTests
         Assert.Equal(StatusCodes.Status200OK, statusCode);
         Assert.Contains("alpha-tunnel", body, StringComparison.Ordinal);
         Assert.Contains("devtunnels.ms", body, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task BuildAuthContextResult_WithValidToken_ReturnsAuthenticatedPayload()
-    {
-        var loader = new StubUserConfigLoader(new UserConfig
-        {
-            Auth = new UserAuthConfig
-            {
-                Username = "user@example.com",
-                AccessToken = "access-token",
-                ExpiresAtUtc = DateTimeOffset.UtcNow.AddMinutes(10)
-            }
-        });
-
-        var result = GatewayEndpointExtensions.BuildAuthContextResult(loader);
-        var (statusCode, body) = await ExecuteResultAsync(result);
-
-        Assert.Equal(StatusCodes.Status200OK, statusCode);
-        Assert.Contains("user@example.com", body, StringComparison.Ordinal);
-        Assert.Contains("access-token", body, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task BuildAuthContextResult_WithoutLogin_ReturnsUnauthorizedGuidance()
-    {
-        var loader = new StubUserConfigLoader(new UserConfig());
-
-        var result = GatewayEndpointExtensions.BuildAuthContextResult(loader);
-        var (statusCode, body) = await ExecuteResultAsync(result);
-
-        Assert.Equal(StatusCodes.Status401Unauthorized, statusCode);
-        Assert.Contains("msclaw auth login", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -165,7 +131,7 @@ public class StartCommandHealthTests
     {
         var webRootPath = CreateWebRoot(new Dictionary<string, string>
         {
-            ["index.html"] = "<html><body>chat</body></html>",
+            ["index.html"] = "<html><head></head><body>chat</body></html>",
             [Path.Combine("css", "site.css")] = "body { color: red; }"
         });
 
@@ -178,6 +144,7 @@ public class StartCommandHealthTests
                 .Services
                 .AddAuthorization()
                 .AddSingleton<IWebHostEnvironment>(new StubWebHostEnvironment(webRootPath))
+                .AddSingleton<IUserConfigLoader>(new StubUserConfigLoader(new UserConfig()))
                 .BuildServiceProvider();
             var builder = new ApplicationBuilder(services);
 
