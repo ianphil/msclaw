@@ -28,5 +28,5 @@ internal static class MindPaths
     public const string InitiativesDir = "initiatives";
     public const string ExpertiseDir = "expertise";
     public const string InboxDir = "inbox";
-    public const string ArchiveDir = "archive";
+    public const string ArchiveDir = "Archive";
 }

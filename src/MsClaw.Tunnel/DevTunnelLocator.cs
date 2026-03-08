@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 
 namespace MsClaw.Tunnel;
@@ -6,36 +5,28 @@ namespace MsClaw.Tunnel;
 /// <summary>
 /// Resolves the devtunnel CLI binary from PATH.
 /// </summary>
-public sealed class DevTunnelLocator : IDevTunnelLocator
+public sealed class DevTunnelLocator(ICommandRunner commandRunner) : IDevTunnelLocator
 {
+    /// <summary>
+    /// Creates a locator using the default <see cref="SystemCommandRunner"/>.
+    /// </summary>
+    public DevTunnelLocator() : this(new SystemCommandRunner())
+    {
+    }
+
     /// <inheritdoc />
     public string ResolveDevTunnelCliPath()
     {
         var isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         var command = isWindows ? "where" : "which";
-        using var process = new Process
-        {
-            StartInfo = new ProcessStartInfo
-            {
-                FileName = command,
-                Arguments = "devtunnel",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            }
-        };
+        var result = commandRunner.Run(command, "devtunnel");
 
-        process.Start();
-        var output = process.StandardOutput.ReadToEnd().Trim();
-        process.WaitForExit();
-
-        if (process.ExitCode != 0 || string.IsNullOrWhiteSpace(output))
+        if (result.ExitCode != 0 || string.IsNullOrWhiteSpace(result.Output))
         {
             throw new InvalidOperationException("devtunnel CLI not found on PATH. Install it and ensure it is available.");
         }
 
-        var lines = output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
+        var lines = result.Output.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries)
             .Select(static value => value.Trim())
             .Where(static value => string.IsNullOrWhiteSpace(value) is false)
             .ToArray();

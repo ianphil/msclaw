@@ -103,15 +103,25 @@ public sealed class SessionPool : ISessionPool
 
     private void ReapExpiredSessions()
     {
-        var now = DateTimeOffset.UtcNow;
-        foreach (var pair in sessions)
+        _ = Task.Run(async () =>
         {
-            if (now - pair.Value.LastAccessed > sessionTimeout
-                && sessions.TryRemove(pair.Key, out var tracked))
+            var now = DateTimeOffset.UtcNow;
+            foreach (var pair in sessions)
             {
-                tracked.Session.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                if (now - pair.Value.LastAccessed > sessionTimeout
+                    && sessions.TryRemove(pair.Key, out var tracked))
+                {
+                    try
+                    {
+                        await tracked.Session.DisposeAsync();
+                    }
+                    catch
+                    {
+                        // Swallow disposal failures so remaining sessions are still reaped.
+                    }
+                }
             }
-        }
+        });
     }
 
     private sealed class TrackedSession(IGatewaySession session)

@@ -40,3 +40,6 @@
 - cleanup: Removed bundled `msal-browser.min.js` — browser UI no longer runs its own OAuth flow; all auth originates from CLI login.
 - security: Replaced `/api/auth/context` endpoint with server-side token injection into index.html via AuthContextMiddleware — eliminates unauthenticated token endpoint and raw token in API response.
 - security: Removed `--tenant` from `devtunnel access create` — tunnel access now defaults to private (owner-only) instead of granting tenant-wide access.
+- reliability: SessionPool.ReapExpiredSessions must not sync-over-async — `Timer` callbacks can't await, so fire-and-forget via `Task.Run` with per-session try/catch prevents process crashes and deadlocks.
+- testing: DevTunnelLocator now accepts ICommandRunner for deterministic testing — same pattern should be applied to CliLocator in the future.
+- convention: MindPaths.ArchiveDir must be "Archive" (capital A) to match docs and IDEA taxonomy. TempMindFixture already used "Archive".
