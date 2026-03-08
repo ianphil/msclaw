@@ -14,5 +14,7 @@ public class GatewayOptionsTests
 
         Assert.Equal("127.0.0.1", options.Host);
         Assert.Equal(18789, options.Port);
+        Assert.False(options.TunnelEnabled);
+        Assert.Null(options.TunnelId);
     }
 }

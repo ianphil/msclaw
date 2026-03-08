@@ -5,12 +5,13 @@ namespace MsClaw.Gateway.Tests;
 public class ProgramCommandTreeTests
 {
     [Fact]
-    public void CreateRootCommand_RegistersStartAndMindSubcommands()
+    public void CreateRootCommand_RegistersStartAuthAndMindSubcommands()
     {
         var root = Program.CreateRootCommand();
         var subcommandNames = root.Subcommands.Select(command => command.Name).ToArray();
 
         Assert.Contains("start", subcommandNames);
+        Assert.Contains("auth", subcommandNames);
         Assert.Contains("mind", subcommandNames);
     }
 }

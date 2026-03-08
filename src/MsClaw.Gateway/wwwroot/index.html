@@ -53,54 +53,9 @@
         <ol id="activity-log" class="activity-log"></ol>
     </aside>
 
-    <script src="/lib/msal/msal-browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
     <script>
-        // ─── MSAL config ───
-        const msalConfig = {
-            auth: {
-                clientId: "d3ede85c-4af4-43aa-b80a-478f16ccb859",
-                authority: "https://login.microsoftonline.com/72f988bf-86f1-41af-91ab-2d7cd011db47",
-                redirectUri: "http://127.0.0.1:18789/"
-            }
-        };
-        const msalInstance = new msal.PublicClientApplication(msalConfig);
-
-        let activeAccount = null;
-
-        async function ensureLoggedIn() {
-            await msalInstance.initialize();
-            const response = await msalInstance.handleRedirectPromise();
-            if (response) {
-                activeAccount = response.account;
-                return activeAccount;
-            }
-
-            const accounts = msalInstance.getAllAccounts();
-            if (accounts.length > 0) {
-                activeAccount = accounts[0];
-                return activeAccount;
-            }
-
-            await msalInstance.loginRedirect({ scopes: ["openid", "profile", "User.Read"] });
-            return null; // page will redirect
-        }
-
-        async function getAccessToken() {
-            const tokenRequest = {
-                scopes: [`api://${msalConfig.auth.clientId}/access_as_user`],
-                account: activeAccount
-            };
-            try {
-                const response = await msalInstance.acquireTokenSilent(tokenRequest);
-                return response.accessToken;
-            } catch {
-                await msalInstance.acquireTokenRedirect(tokenRequest);
-                return null;
-            }
-        }
-
         marked.use({ breaks: true, gfm: true });
         const conversation = document.getElementById("conversation");
         const activityLog = document.getElementById("activity-log");
@@ -117,9 +72,11 @@
         const activityToggle = document.getElementById("activity-toggle");
         const activityDrawer = document.getElementById("activity-drawer");
         const activityClose = document.getElementById("activity-close");
+        const userEmail = document.getElementById("user-email");
 
         let activeSubscription = null;
         let activeAssistantMessage = null;
+        let authContext = window.__AUTH_CONTEXT;
 
         // ─── Textarea: auto-resize + Enter to send ───
 
@@ -156,7 +113,7 @@
 
         const connection = new signalR.HubConnectionBuilder()
             .withUrl("/gateway", {
-                accessTokenFactory: () => getAccessToken()
+                accessTokenFactory: () => authContext?.accessToken ?? ""
             })
             .withAutomaticReconnect()
             .configureLogging(signalR.LogLevel.Information)
@@ -259,15 +216,22 @@
 
         async function initialize() {
             try {
-                const account = await ensureLoggedIn();
-                if (!account) return; // redirecting to login
-                document.getElementById("user-email").textContent = account.username;
-                appendActivity(`Signed in as ${account.username}.`, "success");
+                if (!authContext || !authContext.authenticated) {
+                    throw new Error("Run `msclaw auth login` before opening the gateway UI.");
+                }
+                userEmail.textContent = authContext.username ?? "Authenticated user";
+                appendActivity(`Signed in as ${userEmail.textContent}.`, "success");
                 await ensureConnected();
                 appendActivity("Console ready.", "success");
             } catch (error) {
-                console.error("Init error:", error);
+                setConnectionStatus("Not signed in", "err");
+                userEmail.textContent = "Not signed in";
                 appendActivity(`Initialization failed: ${error.message}`, "error");
+                sendButton.disabled = true;
+                createSessionButton.disabled = true;
+                abortButton.disabled = true;
+                promptInput.disabled = true;
+                clearChatButton.disabled = true;
             }
         }
 

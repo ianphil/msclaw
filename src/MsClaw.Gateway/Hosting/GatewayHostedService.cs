@@ -8,7 +8,7 @@ namespace MsClaw.Gateway.Hosting;
 /// <summary>
 /// Validates the configured mind, starts the gateway client, and exposes gateway runtime services.
 /// </summary>
-public sealed class GatewayHostedService : IGatewayHostedService, IGatewayClient
+public sealed class GatewayHostedService : IGatewayHostedService
 {
     private readonly IMindValidator mindValidator;
     private readonly IIdentityLoader identityLoader;
@@ -82,38 +82,6 @@ public sealed class GatewayHostedService : IGatewayHostedService, IGatewayClient
     }
 
     /// <summary>
-    /// Creates a new session by delegating to the started gateway client.
-    /// </summary>
-    public Task<IGatewaySession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
-    {
-        return GetClientOrThrow().CreateSessionAsync(config, cancellationToken);
-    }
-
-    /// <summary>
-    /// Resumes an existing session by delegating to the started gateway client.
-    /// </summary>
-    public Task<IGatewaySession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null, CancellationToken cancellationToken = default)
-    {
-        return GetClientOrThrow().ResumeSessionAsync(sessionId, config, cancellationToken);
-    }
-
-    /// <summary>
-    /// Lists sessions by delegating to the started gateway client.
-    /// </summary>
-    public Task<IReadOnlyList<SessionMetadata>> ListSessionsAsync(CancellationToken cancellationToken = default)
-    {
-        return GetClientOrThrow().ListSessionsAsync(cancellationToken);
-    }
-
-    /// <summary>
-    /// Deletes a session by delegating to the started gateway client.
-    /// </summary>
-    public Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
-    {
-        return GetClientOrThrow().DeleteSessionAsync(sessionId, cancellationToken);
-    }
-
-    /// <summary>
     /// Disposes the started gateway client if one exists.
     /// </summary>
     public async ValueTask DisposeAsync()
@@ -135,7 +103,7 @@ public sealed class GatewayHostedService : IGatewayHostedService, IGatewayClient
     /// <summary>
     /// Gets the started gateway client or throws when the hosted service is not ready.
     /// </summary>
-    private IGatewayClient GetClientOrThrow()
+    internal IGatewayClient GetClientOrThrow()
     {
         return client ?? throw new InvalidOperationException("The gateway client is not available before startup completes.");
     }

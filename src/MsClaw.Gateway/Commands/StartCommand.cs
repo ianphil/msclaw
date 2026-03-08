@@ -1,22 +1,21 @@
 using System.CommandLine;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Identity.Web;
 using MsClaw.Core;
-using MsClaw.Gateway.Hosting;
-using MsClaw.Gateway.Hubs;
-using MsClaw.Gateway.Services;
-using MsClaw.OpenResponses;
+using MsClaw.Gateway.Extensions;
+using MsClaw.Tunnel;
 
 namespace MsClaw.Gateway.Commands;
 
+/// <summary>
+/// Defines the <c>start</c> CLI command and orchestrates gateway startup.
+/// </summary>
 public static class StartCommand
 {
+    /// <summary>
+    /// Creates the <c>start</c> command with its CLI options.
+    /// </summary>
     public static Command Create()
     {
         var command = new Command("start", "Start the gateway daemon");
@@ -28,100 +27,52 @@ public static class StartCommand
         {
             Description = "Path to scaffold and start a new mind directory"
         };
+        var tunnelOption = new Option<bool>("--tunnel")
+        {
+            Description = "Enable dev tunnel hosting for remote access"
+        };
+        var tunnelIdOption = new Option<string?>("--tunnel-id")
+        {
+            Description = "Use the specified persistent dev tunnel ID"
+        };
         command.Add(mindOption);
         command.Add(newMindOption);
+        command.Add(tunnelOption);
+        command.Add(tunnelIdOption);
         command.SetAction(async (parseResult, cancellationToken) =>
         {
             var mindPath = parseResult.GetValue(mindOption);
             var newMindPath = parseResult.GetValue(newMindOption);
+            var tunnelEnabled = parseResult.GetValue(tunnelOption);
+            var tunnelId = parseResult.GetValue(tunnelIdOption);
             var scaffold = new MindScaffold();
+            var userConfigLoader = new UserConfigLoader();
 
-            return await ExecuteStartAsync(mindPath, newMindPath, RunGatewayAsync, scaffold, cancellationToken);
+            return await ExecuteStartAsync(
+                mindPath,
+                newMindPath,
+                RunGatewayAsync,
+                scaffold,
+                tunnelEnabled,
+                tunnelId,
+                userConfigLoader,
+                cancellationToken);
         });
 
         return command;
     }
 
-    public static void ConfigureServices(IServiceCollection services, IConfiguration configuration, GatewayOptions options)
-    {
-        services.AddAuthentication()
-            .AddMicrosoftIdentityWebApi(configuration.GetSection("AzureAd"));
-        services.Configure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>("Bearer", jwtOptions =>
-        {
-            var existingOnMessageReceived = jwtOptions.Events?.OnMessageReceived;
-            jwtOptions.Events ??= new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents();
-            jwtOptions.Events.OnMessageReceived = async context =>
-            {
-                if (existingOnMessageReceived is not null)
-                {
-                    await existingOnMessageReceived(context);
-                }
-
-                var accessToken = context.Request.Query["access_token"];
-                var path = context.HttpContext.Request.Path;
-                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/gateway"))
-                {
-                    context.Token = accessToken;
-                }
-            };
-        });
-        services.AddAuthorization();
-        services.AddSignalR();
-        services.AddSingleton(options);
-        services.AddSingleton<IMindValidator, MindValidator>();
-        services.AddSingleton<IIdentityLoader, IdentityLoader>();
-        services.AddSingleton<IMindScaffold, MindScaffold>();
-        services.AddSingleton<IMindReader>(_ => new MindReader(options.MindPath));
-        services.AddSingleton<CallerRegistry>();
-        services.AddSingleton<IConcurrencyGate>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
-        services.AddSingleton<ISessionPool, SessionPool>();
-        services.AddSingleton<GatewayHostedService>();
-        services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
-        services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
-        services.AddSingleton<AgentMessageService>();
-        services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
-        services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
-    }
-
-    public static IResult BuildLivenessResult()
-    {
-        return Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK);
-    }
-
-    public static IResult BuildReadinessResult(IGatewayHostedService hostedService)
-    {
-        return hostedService.IsReady
-            ? Results.Json(new { status = "Healthy" }, statusCode: StatusCodes.Status200OK)
-            : Results.Json(
-                new { status = "Unhealthy", component = "hosted-service", error = hostedService.Error },
-                statusCode: StatusCodes.Status503ServiceUnavailable);
-    }
-
-    public static void MapEndpoints(IEndpointRouteBuilder endpoints)
-    {
-        endpoints.MapGet("/health", () => BuildLivenessResult());
-        endpoints.MapGet("/health/ready", ([FromServices] IGatewayHostedService hostedService) => BuildReadinessResult(hostedService));
-        endpoints.MapHub<GatewayHub>("/gateway");
-        endpoints.MapOpenResponses();
-    }
-
     /// <summary>
-    /// Configures middleware required to serve the gateway's static chat assets.
-    /// Splitting this from endpoint mapping keeps the pipeline testable without starting the full host.
+    /// Validates CLI inputs, resolves tunnel settings, and delegates to the gateway runner.
     /// </summary>
-    public static void ConfigurePipeline(IApplicationBuilder application)
-    {
-        application.UseDefaultFiles();
-        application.UseStaticFiles();
-        application.UseAuthentication();
-        application.UseAuthorization();
-    }
-
     public static async Task<int> ExecuteStartAsync(
         string? mindPath,
         string? newMindPath,
         Func<GatewayOptions, CancellationToken, Task<int>> runGatewayAsync,
         IMindScaffold mindScaffold,
+        bool tunnelEnabled = false,
+        string? tunnelId = null,
+        IUserConfigLoader? userConfigLoader = null,
         CancellationToken cancellationToken = default)
     {
         var resolvedMindPath = newMindPath ?? mindPath;
@@ -135,16 +86,24 @@ public static class StartCommand
             mindScaffold.Scaffold(resolvedMindPath);
         }
 
+        var tunnelRequested = tunnelEnabled || IsTunnelEnabledFromEnvironment() || string.IsNullOrWhiteSpace(tunnelId) is false;
+        EnsureTunnelLogin(tunnelRequested, userConfigLoader);
+        var resolvedTunnelId = tunnelRequested ? ResolveTunnelId(tunnelId, userConfigLoader) : null;
         var options = new GatewayOptions
         {
             MindPath = Path.GetFullPath(resolvedMindPath),
             Host = "127.0.0.1",
-            Port = 18789
+            Port = 18789,
+            TunnelEnabled = tunnelRequested,
+            TunnelId = resolvedTunnelId
         };
 
         return await runGatewayAsync(options, cancellationToken);
     }
 
+    /// <summary>
+    /// Builds and runs the ASP.NET Core WebApplication that hosts the gateway.
+    /// </summary>
     public static async Task<int> RunGatewayAsync(GatewayOptions options, CancellationToken cancellationToken = default)
     {
         var assemblyDir = Path.GetDirectoryName(typeof(StartCommand).Assembly.Location)!;
@@ -153,12 +112,64 @@ public static class StartCommand
             WebRootPath = Path.Combine(assemblyDir, "wwwroot")
         });
         builder.WebHost.UseUrls($"http://{options.Host}:{options.Port}");
-        ConfigureServices(builder.Services, builder.Configuration, options);
+        builder.Services.AddGatewayServices(builder.Configuration, options);
         var app = builder.Build();
-        ConfigurePipeline(app);
-        MapEndpoints(app);
-        await app.RunAsync(cancellationToken);
+        app.UseGatewayPipeline();
+        app.MapGatewayEndpoints();
+        await app.StartAsync(cancellationToken);
+        var tunnelManager = app.Services.GetRequiredService<ITunnelManager>();
+        Console.WriteLine(GatewayBannerBuilder.BuildAccessBanner(options, tunnelManager.GetStatus()));
+        await app.WaitForShutdownAsync(cancellationToken);
 
         return 0;
+    }
+
+    private static bool IsTunnelEnabledFromEnvironment()
+    {
+        var value = Environment.GetEnvironmentVariable("MSCLAW_TUNNEL");
+
+        return string.Equals(value, "1", StringComparison.Ordinal)
+            || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "yes", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string? ResolveTunnelId(string? tunnelIdFromCli, IUserConfigLoader? userConfigLoader)
+    {
+        if (string.IsNullOrWhiteSpace(tunnelIdFromCli) is false)
+        {
+            return tunnelIdFromCli;
+        }
+
+        var tunnelIdFromEnvironment = Environment.GetEnvironmentVariable("MSCLAW_TUNNEL_ID");
+        if (string.IsNullOrWhiteSpace(tunnelIdFromEnvironment) is false)
+        {
+            return tunnelIdFromEnvironment;
+        }
+
+        if (userConfigLoader is null)
+        {
+            return null;
+        }
+
+        return userConfigLoader.Load().TunnelId;
+    }
+
+    private static void EnsureTunnelLogin(bool tunnelRequested, IUserConfigLoader? userConfigLoader)
+    {
+        if (tunnelRequested is false)
+        {
+            return;
+        }
+
+        if (userConfigLoader is null)
+        {
+            throw new InvalidOperationException("Tunnel mode requires user config access. Run `msclaw auth login` and retry.");
+        }
+
+        var config = userConfigLoader.Load();
+        if (GatewayEndpointExtensions.TryGetValidAuth(config, DateTimeOffset.UtcNow, out _) is false)
+        {
+            throw new InvalidOperationException("Tunnel mode requires an active login. Run `msclaw auth login` and retry.");
+        }
     }
 }

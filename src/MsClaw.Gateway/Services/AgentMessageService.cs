@@ -46,20 +46,7 @@ public sealed class AgentMessageService
 
         try
         {
-            var session = await sessionPool.GetOrCreateAsync(callerKey, async ct =>
-            {
-                var sessionConfig = new SessionConfig { Streaming = true };
-                if (string.IsNullOrWhiteSpace(hostedService.SystemMessage) is false)
-                {
-                    sessionConfig.SystemMessage = new SystemMessageConfig
-                    {
-                        Mode = SystemMessageMode.Append,
-                        Content = hostedService.SystemMessage
-                    };
-                }
-
-                return await client.CreateSessionAsync(sessionConfig, ct);
-            }, cancellationToken);
+            var session = await GetOrCreateSessionAsync(callerKey, cancellationToken);
 
             var (subscription, events) = SessionEventBridge.Bridge(session, cancellationToken);
             try
@@ -79,5 +66,26 @@ public sealed class AgentMessageService
         {
             concurrencyGate.Release(callerKey);
         }
+    }
+
+    /// <summary>
+    /// Retrieves an existing session for the caller or creates a new streaming session with the hosted system message.
+    /// </summary>
+    private Task<IGatewaySession> GetOrCreateSessionAsync(string callerKey, CancellationToken cancellationToken)
+    {
+        return sessionPool.GetOrCreateAsync(callerKey, async ct =>
+        {
+            var sessionConfig = new SessionConfig { Streaming = true };
+            if (string.IsNullOrWhiteSpace(hostedService.SystemMessage) is false)
+            {
+                sessionConfig.SystemMessage = new SystemMessageConfig
+                {
+                    Mode = SystemMessageMode.Append,
+                    Content = hostedService.SystemMessage
+                };
+            }
+
+            return await client.CreateSessionAsync(sessionConfig, ct);
+        }, cancellationToken);
     }
 }

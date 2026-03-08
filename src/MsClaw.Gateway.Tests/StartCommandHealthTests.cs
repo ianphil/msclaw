@@ -7,8 +7,10 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
-using MsClaw.Gateway.Commands;
+using MsClaw.Core;
+using MsClaw.Gateway.Extensions;
 using MsClaw.Gateway.Hosting;
+using MsClaw.Tunnel;
 using Xunit;
 
 namespace MsClaw.Gateway.Tests;
@@ -25,7 +27,7 @@ public class StartCommandHealthTests
             Error = "Validation failed"
         };
 
-        var result = StartCommand.BuildLivenessResult();
+        var result = GatewayEndpointExtensions.BuildLivenessResult();
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status200OK, statusCode);
@@ -41,7 +43,7 @@ public class StartCommandHealthTests
             IsReady = true
         };
 
-        var result = StartCommand.BuildReadinessResult(hostedService);
+        var result = GatewayEndpointExtensions.BuildReadinessResult(hostedService);
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status200OK, statusCode);
@@ -58,7 +60,7 @@ public class StartCommandHealthTests
             Error = "Validation failed"
         };
 
-        var result = StartCommand.BuildReadinessResult(hostedService);
+        var result = GatewayEndpointExtensions.BuildReadinessResult(hostedService);
         var (statusCode, body) = await ExecuteResultAsync(result);
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, statusCode);
@@ -74,7 +76,7 @@ public class StartCommandHealthTests
         builder.Services.AddSignalR();
         var app = builder.Build();
 
-        StartCommand.MapEndpoints(app);
+        app.MapGatewayEndpoints();
 
         var routePatterns = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(static source => source.Endpoints)
@@ -84,7 +86,26 @@ public class StartCommandHealthTests
 
         Assert.Contains("/health", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/health/ready", routePatterns, StringComparer.Ordinal);
+        Assert.Contains("/api/tunnel/status", routePatterns, StringComparer.Ordinal);
         Assert.Contains("/v1/responses", routePatterns, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task BuildTunnelStatusResult_ReturnsTunnelStatePayload()
+    {
+        var result = GatewayEndpointExtensions.BuildTunnelStatusResult(new StubTunnelManager(new TunnelStatus
+        {
+            Enabled = true,
+            IsRunning = true,
+            TunnelId = "alpha-tunnel",
+            PublicUrl = "https://alpha-tunnel.devtunnels.ms"
+        }));
+
+        var (statusCode, body) = await ExecuteResultAsync(result);
+
+        Assert.Equal(StatusCodes.Status200OK, statusCode);
+        Assert.Contains("alpha-tunnel", body, StringComparison.Ordinal);
+        Assert.Contains("devtunnels.ms", body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -94,7 +115,7 @@ public class StartCommandHealthTests
         builder.Services.AddSignalR();
         var app = builder.Build();
 
-        StartCommand.MapEndpoints(app);
+        app.MapGatewayEndpoints();
 
         var routePatterns = ((IEndpointRouteBuilder)app).DataSources
             .SelectMany(static source => source.Endpoints)
@@ -110,7 +131,7 @@ public class StartCommandHealthTests
     {
         var webRootPath = CreateWebRoot(new Dictionary<string, string>
         {
-            ["index.html"] = "<html><body>chat</body></html>",
+            ["index.html"] = "<html><head></head><body>chat</body></html>",
             [Path.Combine("css", "site.css")] = "body { color: red; }"
         });
 
@@ -123,10 +144,11 @@ public class StartCommandHealthTests
                 .Services
                 .AddAuthorization()
                 .AddSingleton<IWebHostEnvironment>(new StubWebHostEnvironment(webRootPath))
+                .AddSingleton<IUserConfigLoader>(new StubUserConfigLoader(new UserConfig()))
                 .BuildServiceProvider();
             var builder = new ApplicationBuilder(services);
 
-            StartCommand.ConfigurePipeline(builder);
+            builder.UseGatewayPipeline();
             builder.Run(static context =>
             {
                 context.Response.StatusCode = StatusCodes.Status404NotFound;
@@ -228,5 +250,25 @@ public class StartCommandHealthTests
         public string ContentRootPath { get; set; } = webRootPath;
 
         public IFileProvider ContentRootFileProvider { get; set; } = new PhysicalFileProvider(webRootPath);
+    }
+
+    private sealed class StubTunnelManager(TunnelStatus status) : ITunnelManager
+    {
+        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public TunnelStatus GetStatus() => status;
+    }
+
+    private sealed class StubUserConfigLoader(UserConfig config) : IUserConfigLoader
+    {
+        public UserConfig Load() => config;
+
+        public void Save(UserConfig updatedConfig)
+        {
+        }
+
+        public string GetConfigPath() => "C:\\temp\\config.json";
     }
 }

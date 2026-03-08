@@ -11,10 +11,10 @@ internal static class EmbeddedResources
         return ReadResource(resourceName);
     }
 
-    /// <summary>Reads a template file by its exact embedded resource name suffix (for nested paths).</summary>
-    public static string ReadTemplateByResourceName(string resourceSuffix)
+    /// <summary>Reads a template file by its dot-delimited embedded resource path (for nested paths).</summary>
+    public static string ReadTemplateByPath(string resourcePath)
     {
-        var resourceName = $"{ResourcePrefix}{resourceSuffix}";
+        var resourceName = $"{ResourcePrefix}{resourcePath}";
         return ReadResource(resourceName);
     }
 

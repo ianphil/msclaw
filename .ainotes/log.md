@@ -26,3 +26,20 @@
 - cleanup: Removed ISessionMap interface, CallerRegistry trimmed to IConcurrencyGate only. SessionPool holds live IGatewaySession instances keyed by caller.
 - ux: Terminal-style chat layout — input pinned at top, new messages prepend directly below it, older messages push down. This is stdout order, not chat order; `flex-direction: column` with `prepend()` is the correct implementation, not `column-reverse`.
 - ux: Activity log (raw JSON events) works best as a right-side drawer that streams in real-time via SignalR — non-modal so the user can keep chatting while inspecting events. Click-to-expand JSON per event row keeps it compact.
+
+## 2026-03-07
+- devtunnel: persistent tunnel hosting should use `devtunnel host <tunnelId>` once the port is already registered; passing `-p` during host can trigger "Batch update of ports is not supported" for existing tunnels.
+- devtunnel: `devtunnel port create` is not idempotent by default and returns a conflict when the port already exists, so tunnel startup must treat existing-port conflicts as a success path.
+- startup: enabling `--tunnel` while the mind fails validation causes hosted-service startup failures to cascade; surfacing specific actionable errors (missing CLI/login guidance) improves operator recovery.
+
+## 2026-03-08
+- auth: Device-code flow triggers Entra Conditional Access error 530033 ("device must be managed") even on compliant devices because the flow cannot present the device PRT. Interactive browser with localhost loopback redirect satisfies CA policies.
+- auth: MSAL.NET `AcquireTokenInteractive` with `WithRedirectUri("http://localhost")` and `WithUseEmbeddedWebView(false)` mirrors the msal-node `acquireTokenInteractive` pattern already proven in `scripts/get-token/`.
+- auth: Token cached in `~/.msclaw/config.json` under an `auth` object; gateway serves it via `/api/auth/context` so the browser UI can bootstrap SignalR bearer auth without MSAL.js or redirect URIs.
+- auth: Tunnel startup now hard-fails with actionable guidance when no valid auth session exists — prevents confusing anonymous-access errors at the tunnel layer.
+- cleanup: Removed bundled `msal-browser.min.js` — browser UI no longer runs its own OAuth flow; all auth originates from CLI login.
+- security: Replaced `/api/auth/context` endpoint with server-side token injection into index.html via AuthContextMiddleware — eliminates unauthenticated token endpoint and raw token in API response.
+- security: Removed `--tenant` from `devtunnel access create` — tunnel access now defaults to private (owner-only) instead of granting tenant-wide access.
+- reliability: SessionPool.ReapExpiredSessions must not sync-over-async — `Timer` callbacks can't await, so fire-and-forget via `Task.Run` with per-session try/catch prevents process crashes and deadlocks.
+- testing: DevTunnelLocator now accepts ICommandRunner for deterministic testing — same pattern should be applied to CliLocator in the future.
+- convention: MindPaths.ArchiveDir must be "Archive" (capital A) to match docs and IDEA taxonomy. TempMindFixture already used "Archive".

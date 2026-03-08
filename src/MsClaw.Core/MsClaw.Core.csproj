@@ -9,7 +9,7 @@
     <!-- NuGet packaging -->
     <IsPackable>true</IsPackable>
     <PackageId>MsClaw.Core</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.7.0</Version>
     <Authors>ianphil</Authors>
     <Description>MsClaw.Core — scaffold AI minds and create configured Copilot SDK clients</Description>
     <PackageProjectUrl>https://github.com/ianphil/msclaw</PackageProjectUrl>

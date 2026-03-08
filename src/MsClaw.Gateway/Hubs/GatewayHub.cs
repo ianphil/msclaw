@@ -1,7 +1,10 @@
 using System.Runtime.CompilerServices;
+using Microsoft.AspNetCore.Http.Connections.Features;
 using GitHub.Copilot.SDK;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
 
@@ -11,8 +14,23 @@ namespace MsClaw.Gateway.Hubs;
 /// Routes SignalR gateway operations to the underlying message and session services.
 /// </summary>
 [Authorize]
-public sealed class GatewayHub(AgentMessageService messageService, ISessionPool sessionPool) : Hub<IGatewayHubClient>
+public sealed class GatewayHub(
+    AgentMessageService messageService,
+    ISessionPool sessionPool,
+    ILogger<GatewayHub>? logger = null) : Hub<IGatewayHubClient>
 {
+    private readonly ILogger<GatewayHub> logger = logger ?? NullLogger<GatewayHub>.Instance;
+
+    /// <summary>
+    /// Logs the negotiated SignalR transport for connection diagnostics.
+    /// </summary>
+    public override async Task OnConnectedAsync()
+    {
+        var transport = Context.Features.Get<IHttpTransportFeature>()?.TransportType.ToString() ?? "unknown";
+        logger.LogInformation("Gateway connection {ConnectionId} using transport {Transport}", Context.ConnectionId, transport);
+        await base.OnConnectedAsync();
+    }
+
     /// <summary>
     /// Sends a prompt for the connected caller and streams the resulting session events.
     /// </summary>
