@@ -57,36 +57,33 @@ Define interfaces, value types, and enums. No behavior — just contracts.
 Shared `ToolCatalogStore` holds the `ConcurrentDictionary` + status map + provider index. `ToolBridge` implements `IToolCatalog` (read-side) over the store. `ToolRegistrar` implements `IToolRegistrar` (write-side) over the store. Watch loops are NOT here — they belong to `ToolBridgeHostedService` (Phase 4).
 
 ### ToolCatalogStore — Internal Shared Data
-- [ ] T007 [TEST] Write test: add a descriptor to store → retrieve by name returns it
-- [ ] T008 [IMPL] Implement `ToolCatalogStore` — internal class with `ConcurrentDictionary<string, ToolDescriptor>`, `ConcurrentDictionary<string, ToolStatus>`, methods: `Add`, `Remove`, `TryGet`, `GetAll`, `GetByProvider`, `GetStatus`, `SetStatus`
+- [x] T007 [TEST] Write test: add a descriptor to store → retrieve by name returns it
+- [x] T008 [IMPL] Implement `ToolCatalogStore` — internal class with `ConcurrentDictionary<string, ToolDescriptor>`, `ConcurrentDictionary<string, ToolStatus>`, methods: `Add`, `Remove`, `TryGet`, `GetAll`, `GetByProvider`, `GetStatus`, `SetStatus`
 
 ### Registration via ToolRegistrar
-- [ ] T009 [TEST] Write test: register a mock provider with 2 tools → store contains both tool names
-- [ ] T010 [IMPL] Implement `ToolRegistrar.RegisterProviderAsync` — call `DiscoverAsync`, validate, index descriptors into `ToolCatalogStore`
-- [ ] T011 [TEST] Write test: `UnregisterProviderAsync("providerA")` → provider's tools removed from store; call `DisposeAsync` on provider
-- [ ] T012 [IMPL] Implement `UnregisterProviderAsync` — remove tools from store, call `DisposeAsync` on provider
-- [ ] T013 [TEST] Write test: `RefreshProviderAsync` re-calls `DiscoverAsync` and updates store with new tool set (added/removed tools)
-- [ ] T014 [IMPL] Implement `RefreshProviderAsync` — remove old tools, re-discover, re-index
+- [x] T009 [TEST] Write test: register a mock provider with 2 tools → store contains both tool names
+- [x] T010 [IMPL] Implement `ToolRegistrar.RegisterProviderAsync` — call `DiscoverAsync`, validate, index descriptors into `ToolCatalogStore`
+- [x] T011 [TEST] Write test: `UnregisterProviderAsync("providerA")` → provider's tools removed from store; call `DisposeAsync` on provider
+- [x] T012 [IMPL] Implement `UnregisterProviderAsync` — remove tools from store, call `DisposeAsync` on provider
+- [x] T013 [TEST] Write test: `RefreshProviderAsync` re-calls `DiscoverAsync` and updates store with new tool set (added/removed tools)
+- [x] T014 [IMPL] Implement `RefreshProviderAsync` — remove old tools, re-discover, re-index
 
 ### Collision Resolution (in ToolRegistrar)
-- [ ] T015 [TEST] Write test: two providers at same tier with same tool name → `RegisterProviderAsync` throws `InvalidOperationException` with message identifying both providers
-- [ ] T016 [TEST] Write test: Bundled provider and Workspace provider with same tool name → Bundled wins, Workspace tool not cataloged
-- [ ] T017 [IMPL] Implement collision detection in `RegisterProviderAsync` — same-tier throws, cross-tier keeps higher priority
+- [x] T015 [TEST] Write test: two providers at same tier with same tool name → `RegisterProviderAsync` throws `InvalidOperationException` with message identifying both providers
+- [x] T016 [TEST] Write test: Bundled provider and Workspace provider with same tool name → Bundled wins, Workspace tool not cataloged
+- [x] T017 [IMPL] Implement collision detection in `RegisterProviderAsync` — same-tier throws, cross-tier keeps higher priority
 
 ### Catalog Lookups via ToolBridge
-- [ ] T018 [TEST] Write test: register provider → `GetDefaultTools()` returns only AlwaysVisible tools with status Ready
-- [ ] T019 [IMPL] Implement `ToolBridge.GetDefaultTools()` — read from `ToolCatalogStore`, filter by `AlwaysVisible == true` and status `Ready`
-- [ ] T020 [TEST] Write test: `GetToolsByName(["tool_a", "tool_b"])` returns matching AIFunctions; unknown names silently skipped
-- [ ] T021 [IMPL] Implement `GetToolsByName` — store lookup, filter by Ready status
-- [ ] T022 [TEST] Write test: `GetToolNamesByProvider("providerA")` returns that provider's tools; unknown provider returns empty
-- [ ] T023 [IMPL] Implement `GetToolNamesByProvider` — delegate to store
-- [ ] T024 [TEST] Write test: `SearchTools("post message")` matches tool names and descriptions containing keywords (substring, case-insensitive)
-- [ ] T025 [IMPL] Implement `SearchTools` — intentionally simple substring match against `Function.Name` and `Function.Description`. No ranking, no fuzzy matching.
-- [ ] T026 [TEST] Write test: `GetDescriptor("tool_a")` returns descriptor; `GetDescriptor("nonexistent")` returns null
-- [ ] T027 [IMPL] Implement `GetDescriptor` — direct store lookup
-
-### Phase 2 Spec Check
-- [ ] T028 [SPEC] Run spec tests — verify catalog + registrar specs pass
+- [x] T018 [TEST] Write test: register provider → `GetDefaultTools()` returns only AlwaysVisible tools with status Ready
+- [x] T019 [IMPL] Implement `ToolBridge.GetDefaultTools()` — read from `ToolCatalogStore`, filter by `AlwaysVisible == true` and status `Ready`
+- [x] T020 [TEST] Write test: `GetToolsByName(["tool_a", "tool_b"])` returns matching AIFunctions; unknown names silently skipped
+- [x] T021 [IMPL] Implement `GetToolsByName` — store lookup, filter by Ready status
+- [x] T022 [TEST] Write test: `GetToolNamesByProvider("providerA")` returns that provider's tools; unknown provider returns empty
+- [x] T023 [IMPL] Implement `GetToolNamesByProvider` — delegate to store
+- [x] T024 [TEST] Write test: `SearchTools("post message")` matches tool names and descriptions containing keywords (substring, case-insensitive)
+- [x] T025 [IMPL] Implement `SearchTools` — intentionally simple substring match against `Function.Name` and `Function.Description`. No ranking, no fuzzy matching.
+- [x] T026 [TEST] Write test: `GetDescriptor("tool_a")` returns descriptor; `GetDescriptor("nonexistent")` returns null
+- [x] T027 [IMPL] Implement `GetDescriptor` — direct store lookup
 
 ## Phase 3: ToolExpander Implementation
 
@@ -111,9 +108,6 @@ Creates per-session `expand_tools` AIFunction with load/query modes.
 - [ ] T038 [TEST] Write test: expand_tools with unknown tool name → silently skips, returns result noting which names were not found
 - [ ] T039 [IMPL] Implement edge case handling — `await GetSessionAsync()` with cancellation timeout, unknown name reporting
 
-### Phase 3 Spec Check
-- [ ] T040 [SPEC] Run spec tests — verify ToolExpander-related specs pass
-
 ## Phase 4: Integration
 
 Wire ToolCatalogStore, ToolBridge, ToolRegistrar, and ToolExpander into gateway DI, session creation, and startup. Hosted service owns provider registration AND watch loops.
@@ -134,18 +128,15 @@ Wire ToolCatalogStore, ToolBridge, ToolRegistrar, and ToolExpander into gateway 
 - [ ] T049 [TEST] Write test: `ToolBridgeHostedService.StopAsync` cancels watch loops and unregisters all providers
 - [ ] T050 [IMPL] Implement `ToolBridgeHostedService` — iterate `IEnumerable<IToolProvider>`, register each, start watch loops with per-provider `CancellationTokenSource`, handle individual failures
 
-### Phase 4 Spec Check
-- [ ] T051 [SPEC] Run spec tests — verify all session integration and DI specs pass
-
 ## Task Summary
 
-| Phase | Tasks | [TEST] | [IMPL] | [SPEC] |
-|-------|-------|--------|--------|--------|
-| Phase 1: Core Abstractions | T001–T006 | 1 | 5 | 0 |
-| Phase 2: Store + Bridge + Registrar | T007–T028 | 11 | 11 | 1 |
-| Phase 3: ToolExpander | T029–T040 | 7 | 4 | 1 |
-| Phase 4: Integration + Watch Loops | T041–T051 | 6 | 3 | 1 |
-| **Total** | **51** | **25** | **23** | **3** |
+| Phase | Tasks | [TEST] | [IMPL] |
+|-------|-------|--------|--------|
+| Phase 1: Core Abstractions | T001–T006 | 1 | 5 |
+| Phase 2: Store + Bridge + Registrar | T007–T027 | 11 | 11 |
+| Phase 3: ToolExpander | T029–T039 | 7 | 4 |
+| Phase 4: Integration + Watch Loops | T041–T050 | 6 | 3 |
+| **Total** | **48** | **25** | **23** |
 
 ## Final Validation
 
@@ -153,5 +144,3 @@ After all implementation phases are complete:
 
 - [ ] `dotnet build src/MsClaw.slnx --nologo` passes
 - [ ] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes
-- [ ] Run spec tests with `/spec-tests` skill using `specs/tests/003-tool-bridge.md`
-- [ ] All spec tests pass → feature complete

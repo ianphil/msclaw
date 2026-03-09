@@ -11,3 +11,4 @@
 - planning: Decomposed single ToolBridge singleton into three classes — ToolCatalogStore (shared ConcurrentDictionary), ToolBridge (IToolCatalog read), ToolRegistrar (IToolRegistrar write). SRP wins: catalog lookups and provider registration change for different reasons.
 - planning: SessionHolder upgraded from nullable property to TaskCompletionSource<IGatewaySession> — eliminates race conditions between session creation and expand_tools invocation. Callers await rather than null-check.
 - planning: WaitForSurfaceChangeAsync watch loops moved from registrar to ToolBridgeHostedService — mutation driver (hosted service) separated from mutation executor (registrar) for testability.
+- testing: Gateway internal infrastructure tests need InternalsVisibleTo in MsClaw.Gateway when new non-public services like ToolCatalogStore are introduced.
