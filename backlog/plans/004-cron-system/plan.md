@@ -22,6 +22,7 @@ Implement a timer-based cron engine as an `IHostedService` and expose job manage
                     │            CronEngine                 │
                     │         (IHostedService)              │
                     │    PeriodicTimer (2s tick)            │
+                    │    _activeJobIds (in-memory)          │
                     │                                      │
                     │  ┌────────────┐  ┌────────────────┐  │
                     │  │  Evaluate  │  │  Dispatch      │  │
@@ -29,25 +30,24 @@ Implement a timer-based cron engine as an `IHostedService` and expose job manage
                     │  └─────┬──────┘  └────────┬───────┘  │
                     └────────┼──────────────────┼──────────┘
                              │                  │
-                    ┌────────▼──────┐   ┌───────▼──────────┐
-                    │ CronJobStore  │   │ICronJobExecutor   │
-                    │               │   │                   │
-                    │ jobs.json     │   │┌─────────────────┐│
-                    │ history/      │   ││PromptJobExecutor││
-                    │               │   ││(SessionPool)    ││
-                    │~/.msclaw/cron/│   │├─────────────────┤│
-                    │               │   ││CommandJobExecutor│
-                    │               │   ││(Process.Start)  ││
-                    └───────────────┘   │└─────────────────┘│
-                                        └─────────┬────────┘
-                                                  │
-                                        ┌─────────▼────────┐
-                                        │IHubContext        │
-                                        │<GatewayHub,      │
-                                        │ IGatewayHubClient>│
-                                        │                   │
-                                        │ReceiveEvent()     │
-                                        └───────────────────┘
+              ┌──────────────┼──────┐   ┌───────▼──────────┐
+              │              │      │   │ICronJobExecutor   │
+              │   ┌──────────▼────┐ │   │                   │
+              │   │ICronJobStore  │ │   │┌─────────────────┐│
+              │   │(in-memory     │ │   ││PromptJobExecutor││
+              │   │ + flush)      │ │   ││(SessionPool)    ││
+              │   └───────────────┘ │   │├─────────────────┤│
+              │                     │   ││CommandJobExecutor│
+              │   ┌─────────────────┤   ││(Process.Start)  ││
+              │   │ICronRunHistory  │   │└─────────────────┘│
+              │   │Store            │   └─────────┬────────┘
+              │   │(per-job files)  │             │
+              │   └─────────────────┤   ┌─────────▼────────┐
+              │                     │   │ICronOutputSink    │
+              │   ~/.msclaw/cron/   │   │                   │
+              └─────────────────────┘   │SignalRCronOutput  │
+                                        │Sink → IHubContext │
+                                        └──────────────────┘
 ```
 
 ## Detailed Architecture
@@ -56,13 +56,17 @@ Implement a timer-based cron engine as an `IHostedService` and expose job manage
 
 | Component | Role | Integrates With |
 |-----------|------|-----------------|
-| `CronToolProvider` | Exposes 7 `AIFunction` tools, delegates to engine/store | `IToolProvider`, `ToolBridge`, `CronEngine` |
-| `CronEngine` | Hosted service, timer tick, job evaluation, dispatch | `CronJobStore`, `ICronJobExecutor`, `IHubContext` |
-| `CronJobStore` | JSON persistence, atomic writes, hot reload, history | Filesystem (`~/.msclaw/cron/`) |
+| `CronToolProvider` | Exposes 7 `AIFunction` tools, delegates to store | `IToolProvider`, `ToolBridge`, `ICronJobStore` |
+| `CronEngine` | Hosted service, timer tick, job evaluation, dispatch | `ICronJobStore`, `ICronRunHistoryStore`, `ICronJobExecutor`, `ICronOutputSink`, `ICronErrorClassifier` |
+| `CronJobStore` | In-memory cache with atomic disk flush, implements both `ICronJobStore` and `ICronRunHistoryStore` | Filesystem (`~/.msclaw/cron/`) |
 | `ICronJobExecutor` | Abstraction for job execution by payload type | `CronJob`, `CronRunResult` |
 | `PromptJobExecutor` | Creates isolated session, sends prompt, collects output | `ISessionPool`, `IGatewayClient`, `IToolCatalog` |
 | `CommandJobExecutor` | Runs shell command, captures stdout/stderr | `System.Diagnostics.Process` |
-| `CronRunHistory` | Per-job history files with auto-pruning | `CronJobStore` path |
+| `ICronOutputSink` | Publishes execution results to external consumers | Decouples engine from SignalR |
+| `SignalRCronOutputSink` | Default output sink via SignalR | `IHubContext<GatewayHub, IGatewayHubClient>` |
+| `CronScheduleCalculator` | Pure static helper for computing next run times | Cronos, `JobSchedule` |
+| `CronStaggerCalculator` | Pure static helper for deterministic stagger offsets | Job ID hash |
+| `ICronErrorClassifier` | Classifies errors as transient or permanent | `Exception` types |
 
 ### Data Flow: Operator Creates a Recurring Job
 
@@ -132,15 +136,21 @@ src/MsClaw.Gateway/
 │   │   ├── CronEngine.cs                    # NEW: IHostedService + PeriodicTimer
 │   │   ├── ICronEngine.cs                   # NEW: Interface for testability
 │   │   ├── CronJob.cs                       # NEW: Job model + schedule types
-│   │   ├── CronJobStore.cs                  # NEW: JSON persistence + history
-│   │   ├── ICronJobStore.cs                 # NEW: Interface for testability
+│   │   ├── CronJobStore.cs                  # NEW: In-memory cache + atomic disk flush
+│   │   ├── ICronJobStore.cs                 # NEW: Job CRUD interface
+│   │   ├── ICronRunHistoryStore.cs           # NEW: Run history interface (ISP split)
 │   │   ├── CronRunResult.cs                 # NEW: Execution result model
 │   │   ├── CronRunHistory.cs                # NEW: History model + pruning
 │   │   ├── ICronJobExecutor.cs              # NEW: Executor abstraction
 │   │   ├── PromptJobExecutor.cs             # NEW: Isolated session executor
 │   │   ├── CommandJobExecutor.cs            # NEW: Shell command executor
 │   │   ├── CronToolProvider.cs              # NEW: IToolProvider with 7 tools
-│   │   └── CronErrorClassifier.cs           # NEW: Transient vs permanent
+│   │   ├── ICronErrorClassifier.cs          # NEW: Error classifier interface
+│   │   ├── DefaultCronErrorClassifier.cs    # NEW: Default transient vs permanent
+│   │   ├── ICronOutputSink.cs               # NEW: Output publishing abstraction
+│   │   ├── SignalRCronOutputSink.cs          # NEW: SignalR output publisher
+│   │   ├── CronScheduleCalculator.cs        # NEW: Pure schedule computation
+│   │   └── CronStaggerCalculator.cs         # NEW: Deterministic stagger offsets
 │   └── Tools/
 │       └── (existing — no changes)
 ├── Extensions/
@@ -151,12 +161,15 @@ src/MsClaw.Gateway.Tests/
 ├── Cron/
 │   ├── CronJobTests.cs                      # NEW: Model serialization tests
 │   ├── CronJobStoreTests.cs                 # NEW: Persistence round-trip tests
+│   ├── CronRunHistoryStoreTests.cs          # NEW: History + pruning tests
 │   ├── CronEngineTests.cs                   # NEW: Timer evaluation + dispatch
 │   ├── PromptJobExecutorTests.cs            # NEW: Session creation + execution
 │   ├── CommandJobExecutorTests.cs           # NEW: Process execution + timeout
 │   ├── CronToolProviderTests.cs             # NEW: Tool discovery tests
-│   ├── CronRunHistoryTests.cs               # NEW: History + pruning tests
-│   └── CronErrorClassifierTests.cs          # NEW: Error classification tests
+│   ├── CronScheduleCalculatorTests.cs       # NEW: Schedule computation tests
+│   ├── CronStaggerCalculatorTests.cs        # NEW: Stagger offset tests
+│   ├── DefaultCronErrorClassifierTests.cs   # NEW: Error classification tests
+│   └── SignalRCronOutputSinkTests.cs        # NEW: Output publishing tests
 ```
 
 ## Critical: Polymorphic JSON Serialization
@@ -202,17 +215,23 @@ This produces human-readable JSON:
 | Job store location | `~/.msclaw/cron/jobs.json` | Follows `~/.msclaw/` convention from `UserConfigLoader` |
 | Persistence format | JSON with `WriteIndented` | Human-inspectable per spec requirement |
 | Atomic writes | Write-temp-then-rename | Prevents corruption on crash per spec edge case |
+| Store caching strategy | In-memory `ConcurrentDictionary`, flush-on-mutate | Eliminates load-modify-save race between engine ticks and CRUD tools |
+| Hot-reload (FR-8.2) | Requires gateway restart for v1 | In-memory canonical state eliminates per-tick disk reads; file watcher is future work |
 | Timer period | 2 seconds (`PeriodicTimer`) | Matches REQ-018 minimum refire gap |
 | Payload type system | `[JsonPolymorphic]` on abstract record | Type-safe, extensible, clean JSON |
 | Executor resolution | DI `IEnumerable<ICronJobExecutor>` keyed by payload type | Open/closed principle — new payloads need no engine changes |
 | Session key format | `"cron:{jobId}:{runId}"` | Unique per execution, no collision with user sessions |
 | Tool tier | `Bundled` + `AlwaysVisible = true` | Cron tools always available in every session |
 | Concurrency default | 1 (serial execution) | Matches spec assumption for most deployments |
-| Stagger algorithm | Deterministic hash of job ID modulo stagger window | Same job always gets same offset |
+| Stagger algorithm | `CronStaggerCalculator` — deterministic hash of job ID modulo stagger window | Same job always gets same offset; pure static helper |
+| Schedule computation | `CronScheduleCalculator` — pure static helper | Extracted from engine for SRP; trivially testable without mocking |
 | One-shot finalization | Always disable (never delete) | Simpler; operator can re-enable or delete manually |
 | `cron_update` scope | All fields updatable (name, schedule, payload, maxConcurrency) | Maximum flexibility; delete+recreate is unnecessary |
 | Backoff intervals | Global-only (30s, 1m, 5m, 15m, 60m) | Simpler; per-job config adds complexity without clear need |
-| SignalR cron output | Dedicated `ReceiveCronResult` method on `IGatewayHubClient` | Clean separation from chat event stream |
+| Output publishing | `ICronOutputSink` interface with `SignalRCronOutputSink` default | Decouples engine from SignalR; future sinks (webhooks, Teams) need no engine changes |
+| Error classification | `ICronErrorClassifier` interface with `DefaultCronErrorClassifier` | Extensible for payload-specific classifiers (exit codes vs SDK exceptions) |
+| Running state tracking | In-memory `HashSet<string>` in engine, NOT persisted | Prevents crash recovery bug where persisted Running status permanently blocks a job |
+| Job store interface split | `ICronJobStore` (CRUD) + `ICronRunHistoryStore` (history) | ISP — consumers depend only on what they use; `cron_get` needs history, engine needs CRUD |
 | Cronos version | 0.11.1 (verified net10.0 compatible) | Targets .NET 6.0+ and .NET Standard 1.0 |
 
 ## Configuration Example
@@ -257,19 +276,25 @@ Jobs are stored at `~/.msclaw/cron/jobs.json`:
 
 | File | Purpose |
 |------|---------|
-| `src/MsClaw.Gateway/Services/Cron/CronJob.cs` | Job model, schedule types, payload types, status enum |
+| `src/MsClaw.Gateway/Services/Cron/CronJob.cs` | Job model, schedule types, payload types, status enum (Enabled/Disabled only) |
 | `src/MsClaw.Gateway/Services/Cron/CronRunResult.cs` | Execution result (Content, Outcome, ErrorMessage, DurationMs) |
 | `src/MsClaw.Gateway/Services/Cron/CronRunHistory.cs` | History entry model + history file with pruning |
-| `src/MsClaw.Gateway/Services/Cron/CronErrorClassifier.cs` | Transient vs permanent error classification |
-| `src/MsClaw.Gateway/Services/Cron/ICronJobStore.cs` | Store interface |
-| `src/MsClaw.Gateway/Services/Cron/CronJobStore.cs` | JSON persistence with atomic writes |
-| `src/MsClaw.Gateway/Services/Cron/ICronEngine.cs` | Engine interface for testability |
-| `src/MsClaw.Gateway/Services/Cron/CronEngine.cs` | Hosted service with PeriodicTimer |
+| `src/MsClaw.Gateway/Services/Cron/ICronJobStore.cs` | Job CRUD interface (6 methods) |
+| `src/MsClaw.Gateway/Services/Cron/ICronRunHistoryStore.cs` | Run history interface (2 methods, ISP split) |
+| `src/MsClaw.Gateway/Services/Cron/CronJobStore.cs` | Implements both `ICronJobStore` and `ICronRunHistoryStore` — in-memory cache with atomic flush |
+| `src/MsClaw.Gateway/Services/Cron/ICronEngine.cs` | Engine interface (IsRunning, ActiveJobCount, IsJobActive) |
+| `src/MsClaw.Gateway/Services/Cron/CronEngine.cs` | Hosted service with PeriodicTimer, in-memory `_activeJobIds` |
 | `src/MsClaw.Gateway/Services/Cron/ICronJobExecutor.cs` | Executor abstraction |
 | `src/MsClaw.Gateway/Services/Cron/PromptJobExecutor.cs` | Isolated session executor |
 | `src/MsClaw.Gateway/Services/Cron/CommandJobExecutor.cs` | Shell command executor |
 | `src/MsClaw.Gateway/Services/Cron/CronToolProvider.cs` | IToolProvider with 7 AIFunction tools |
-| 8 test files in `src/MsClaw.Gateway.Tests/Cron/` | Unit tests for all components |
+| `src/MsClaw.Gateway/Services/Cron/ICronErrorClassifier.cs` | Error classification interface |
+| `src/MsClaw.Gateway/Services/Cron/DefaultCronErrorClassifier.cs` | Default transient vs permanent classification |
+| `src/MsClaw.Gateway/Services/Cron/ICronOutputSink.cs` | Output publishing abstraction |
+| `src/MsClaw.Gateway/Services/Cron/SignalRCronOutputSink.cs` | SignalR output publisher |
+| `src/MsClaw.Gateway/Services/Cron/CronScheduleCalculator.cs` | Pure static schedule computation |
+| `src/MsClaw.Gateway/Services/Cron/CronStaggerCalculator.cs` | Pure static deterministic stagger offsets |
+| 11 test files in `src/MsClaw.Gateway.Tests/Cron/` | Unit tests for all components |
 
 ## Verification
 
@@ -298,6 +323,7 @@ Jobs are stored at `~/.msclaw/cron/jobs.json`:
 4. No visual UI — management is conversational
 5. Session retention follows SessionPool defaults, not per-job configuration
 6. No process sandboxing for `CommandPayload` — trusts the operator
+7. Manual edits to `jobs.json` require gateway restart (hot-reload deferred to file watcher)
 
 ## References
 

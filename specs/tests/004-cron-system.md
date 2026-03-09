@@ -2,13 +2,22 @@
 target:
   - src/MsClaw.Gateway/Services/Cron/CronJob.cs
   - src/MsClaw.Gateway/Services/Cron/CronJobStore.cs
+  - src/MsClaw.Gateway/Services/Cron/ICronJobStore.cs
+  - src/MsClaw.Gateway/Services/Cron/ICronRunHistoryStore.cs
+  - src/MsClaw.Gateway/Services/Cron/ICronEngine.cs
   - src/MsClaw.Gateway/Services/Cron/CronEngine.cs
   - src/MsClaw.Gateway/Services/Cron/ICronJobExecutor.cs
   - src/MsClaw.Gateway/Services/Cron/PromptJobExecutor.cs
   - src/MsClaw.Gateway/Services/Cron/CommandJobExecutor.cs
   - src/MsClaw.Gateway/Services/Cron/CronToolProvider.cs
   - src/MsClaw.Gateway/Services/Cron/CronRunResult.cs
-  - src/MsClaw.Gateway/Services/Cron/CronErrorClassifier.cs
+  - src/MsClaw.Gateway/Services/Cron/CronRunHistory.cs
+  - src/MsClaw.Gateway/Services/Cron/ICronErrorClassifier.cs
+  - src/MsClaw.Gateway/Services/Cron/DefaultCronErrorClassifier.cs
+  - src/MsClaw.Gateway/Services/Cron/ICronOutputSink.cs
+  - src/MsClaw.Gateway/Services/Cron/SignalRCronOutputSink.cs
+  - src/MsClaw.Gateway/Services/Cron/CronScheduleCalculator.cs
+  - src/MsClaw.Gateway/Services/Cron/CronStaggerCalculator.cs
   - src/MsClaw.Gateway/Extensions/GatewayServiceExtensions.cs
 ---
 
@@ -29,7 +38,7 @@ Then it has an id field of type string
 And it has a name field of type string
 And it has a schedule field of a polymorphic schedule type
 And it has a payload field of a polymorphic payload type
-And it has a status field of an enum type with Enabled, Disabled, and Running values
+And it has a status field of an enum type with Enabled and Disabled values (Running is tracked in-memory by the engine, not persisted)
 And it has createdAtUtc, lastRunAtUtc, and nextRunAtUtc fields for temporal tracking
 ```
 
@@ -69,7 +78,8 @@ Given the src/MsClaw.Gateway/Services/Cron/CronJobStore.cs file
 When examining the class implementation
 Then it reads and writes job data to a file within the ~/.msclaw/cron/ directory
 And it uses atomic write (write to temp then rename) to prevent corruption
-And it supports loading, saving, adding, updating, and removing jobs
+And it maintains an in-memory cache and flushes to disk on every mutation
+And it supports adding, updating, removing, and getting jobs
 ```
 
 ### CronJobStore implements ICronJobStore interface
@@ -80,17 +90,19 @@ The engine and tool provider must access the store through an interface for test
 Given the src/MsClaw.Gateway/Services/Cron/CronJobStore.cs file
 When examining the class declaration
 Then it implements an ICronJobStore interface
-And the interface defines methods for LoadJobsAsync, SaveJobsAsync, AddJobAsync, UpdateJobAsync, RemoveJobAsync, and GetJobAsync
+And the ICronJobStore interface defines methods for InitializeAsync, GetAllJobsAsync, GetJobAsync, AddJobAsync, UpdateJobAsync, and RemoveJobAsync
+And it also implements ICronRunHistoryStore as a separate interface
 ```
 
-### CronJobStore tracks run history with pruning
+### CronJobStore tracks run history with pruning via ICronRunHistoryStore
 
-Operators need execution history for debugging. Without history pruning, disk usage grows unbounded.
+Operators need execution history for debugging. Without history pruning, disk usage grows unbounded. History is on a separate interface from job CRUD per Interface Segregation Principle.
 
 ```
 Given the src/MsClaw.Gateway/Services/Cron/CronJobStore.cs file
 When examining the run history methods
-Then it appends run records to per-job history files
+Then it implements ICronRunHistoryStore which defines AppendRunRecordAsync and GetRunHistoryAsync
+And it appends run records to per-job history files
 And it provides a method to retrieve run history for a given job ID
 And it enforces size or line count limits to prevent unbounded growth
 ```
@@ -181,11 +193,12 @@ And it selects the executor whose PayloadType matches the job's payload type
 One-shot jobs must retry on transient errors but finalize on permanent ones. Without classification, all errors get the same treatment — either over-retrying permanent failures or abandoning recoverable ones.
 
 ```
-Given the src/MsClaw.Gateway/Services/Cron/CronErrorClassifier.cs file
+Given the src/MsClaw.Gateway/Services/Cron/DefaultCronErrorClassifier.cs file
 When examining the classification logic
-Then it classifies network errors, timeouts, and server errors as transient
+Then it implements the ICronErrorClassifier interface
+And it classifies network errors, timeouts, and server errors as transient
 And it classifies authentication failures and configuration errors as permanent
-And it exposes a method that accepts an Exception and returns whether it is transient
+And the interface defines a method that accepts an Exception and returns whether it is transient
 ```
 
 ## Tool Provider
@@ -213,8 +226,10 @@ If cron services aren't registered in DI, the engine won't start, tools won't be
 ```
 Given the src/MsClaw.Gateway/Extensions/GatewayServiceExtensions.cs file
 When examining the AddGatewayServices method
-Then it registers CronJobStore as ICronJobStore
+Then it registers CronJobStore as both ICronJobStore and ICronRunHistoryStore (same singleton instance)
 And it registers CronEngine as both ICronEngine and IHostedService
 And it registers CronToolProvider as IToolProvider
 And it registers PromptJobExecutor and CommandJobExecutor as ICronJobExecutor
+And it registers DefaultCronErrorClassifier as ICronErrorClassifier
+And it registers SignalRCronOutputSink as ICronOutputSink
 ```

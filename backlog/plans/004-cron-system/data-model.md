@@ -28,8 +28,8 @@ The root entity representing a scheduled job created by the agent on behalf of t
 **Invariants:**
 - `id` must be non-empty and unique within the store
 - `name` must be non-empty
-- `status` transitions: `Enabled` ↔ `Disabled`, `Enabled` → `Running` → `Enabled`/`Disabled`
-- `nextRunAtUtc` is recalculated on each engine tick based on schedule
+- `status` transitions (persisted): `Enabled` ↔ `Disabled`
+- `nextRunAtUtc` is recalculated by `CronScheduleCalculator` after each execution
 
 ### JobSchedule (Polymorphic)
 
@@ -92,11 +92,12 @@ Discriminated union for execution payloads, serialized with `type` field.
 
 ### CronJobStatus (Enum)
 
+Only `Enabled` and `Disabled` are persisted to disk. The former `Running` state is tracked in-memory by the `CronEngine` via `HashSet<string> _activeJobIds` to prevent the crash recovery bug where a persisted Running status permanently blocks a job after unclean shutdown.
+
 | Value | Description |
 |-------|-------------|
 | `Enabled` | Job is active and will be scheduled |
 | `Disabled` | Job is paused — retains config, skips scheduling |
-| `Running` | Job is currently executing — prevents concurrent dispatch |
 
 ### BackoffState
 
@@ -158,6 +159,8 @@ Root document for `jobs.json` serialization.
 
 ### CronJob Lifecycle
 
+Persisted states are `Enabled` and `Disabled`. The engine tracks "active" (executing) jobs in memory via `HashSet<string> _activeJobIds`.
+
 ```
                    ┌──────────┐
          create───►│ Enabled  │◄──────resume
@@ -168,19 +171,20 @@ Root document for `jobs.json` serialization.
            pause     due tick   delete
               │         │         │
               ▼         ▼         ▼
-         ┌─────────┐ ┌─────────┐
-         │Disabled │ │ Running │  [removed]
-         └─────────┘ └────┬────┘
-                          │
-                    ┌─────┼──────┐
-                    │            │
-                 success      failure
-                    │            │
-                    ▼            ▼
-              ┌─────────┐  ┌─────────────┐
-              │ Enabled  │  │  Enabled    │ (recurring: backoff applied)
-              │          │  │  Disabled   │ (one-shot: on permanent error)
-              └──────────┘  └─────────────┘
+         ┌─────────┐ ┌──────────────────┐
+         │Disabled │ │ Active           │  [removed]
+         └─────────┘ │ (in-memory only) │
+                     └────────┬─────────┘
+                              │
+                        ┌─────┼──────┐
+                        │            │
+                     success      failure
+                        │            │
+                        ▼            ▼
+                  ┌─────────┐  ┌─────────────┐
+                  │ Enabled  │  │  Enabled    │ (recurring: backoff applied)
+                  │          │  │  Disabled   │ (one-shot: on permanent error)
+                  └──────────┘  └─────────────┘
 ```
 
 | Transition | From | To | Trigger |
@@ -188,23 +192,23 @@ Root document for `jobs.json` serialization.
 | Create | — | Enabled | `cron_create` tool |
 | Pause | Enabled | Disabled | `cron_pause` tool |
 | Resume | Disabled | Enabled | `cron_resume` tool |
-| Start execution | Enabled | Running | Engine dispatches job |
-| Complete (success) | Running | Enabled | Executor returns Success |
-| Complete (failure, recurring) | Running | Enabled + Backoff | Executor returns Failure |
-| Complete (failure, one-shot, transient) | Running | Enabled + Backoff | Retry available |
-| Complete (failure, one-shot, permanent) | Running | Disabled | Max retries reached or permanent error |
-| Finalize (one-shot success) | Running | Disabled | One-shot completes successfully (always disable, never delete) |
+| Start execution | Enabled | Enabled + active set | Engine adds job ID to `_activeJobIds` |
+| Complete (success) | Enabled + active | Enabled (active removed) | Executor returns Success |
+| Complete (failure, recurring) | Enabled + active | Enabled + Backoff (active removed) | Executor returns Failure |
+| Complete (failure, one-shot, transient) | Enabled + active | Enabled + Backoff (active removed) | Retry available |
+| Complete (failure, one-shot, permanent) | Enabled + active | Disabled (active removed) | Max retries reached or permanent error |
+| Finalize (one-shot success) | Enabled + active | Disabled (active removed) | One-shot completes successfully (always disable, never delete) |
 | Delete | Any | [removed] | `cron_delete` tool |
 
 ### One-Shot Job Finalization
 
 ```
-One-Shot Created ──► Enabled ──► Running ──► Success ──► Disabled (finalized)
-                                    │
-                                    ├──► Transient Failure ──► Enabled + Backoff ──► Running (retry)
-                                    │                              (up to maxRetries)
-                                    └──► Permanent Failure ──► Disabled (finalized)
-                                    └──► Max Retries Reached ──► Disabled (finalized)
+One-Shot Created ──► Enabled ──► Active (in-memory) ──► Success ──► Disabled (finalized)
+                                        │
+                                        ├──► Transient Failure ──► Enabled + Backoff ──► Active (retry)
+                                        │                              (up to maxRetries)
+                                        └──► Permanent Failure ──► Disabled (finalized)
+                                        └──► Max Retries Reached ──► Disabled (finalized)
 ```
 
 ## Data Flow
@@ -216,14 +220,12 @@ Agent ──cron_create──► CronToolProvider
                             │
                        validate inputs
                             │
-                       compute nextRunAtUtc
+                       compute nextRunAtUtc via CronScheduleCalculator
                             │
-                       CronJobStore.AddAsync(job)
+                       CronJobStore.AddJobAsync(job)
                             │
-                       load jobs.json
-                       append new job
-                       write temp file
-                       rename to jobs.json
+                       update in-memory ConcurrentDictionary
+                       flush to disk atomically (write-temp-then-rename)
                             │
                        return job summary
 ```
@@ -233,28 +235,30 @@ Agent ──cron_create──► CronToolProvider
 ```
 PeriodicTimer (2s) ──► CronEngine.OnTickAsync()
                             │
-                       CronJobStore.LoadAsync()
+                       CronJobStore.GetAllJobsAsync()  ← reads from in-memory cache
                             │
                        for each job where:
                          status == Enabled
+                         not in _activeJobIds (in-memory)
                          nextRunAtUtc <= UtcNow
                          no backoff blocking
                             │
-                       check concurrency limit
+                       check concurrency limit (SemaphoreSlim)
                             │
-                       set status = Running
-                       CronJobStore.SaveAsync()
+                       add jobId to _activeJobIds
                             │
                        resolve ICronJobExecutor by payload type
                             │
                        executor.ExecuteAsync(job, runId, ct)
                             │
-                       record CronRunRecord
+                       record CronRunRecord via ICronRunHistoryStore
                             │
-                       update job status + nextRunAtUtc + backoff
-                       CronJobStore.SaveAsync()
+                       update job (nextRunAtUtc via CronScheduleCalculator, backoff)
+                       CronJobStore.UpdateJobAsync(job) ← updates memory + flushes to disk
                             │
-                       publish to IHubContext
+                       remove jobId from _activeJobIds
+                            │
+                       publish to ICronOutputSink
 ```
 
 ## Validation Summary

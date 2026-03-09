@@ -8,6 +8,12 @@
 - design: expand_tools needs the session reference but the session needs expand_tools in its config — solved with deferred binding via SessionHolder wrapper and mutable tool list captured in closure.
 - design: Same-tier tool name collision is a hard error (InvalidOperationException), intentionally stricter than spec (which says log and skip). Makes DI registration order irrelevant.
 - reference: Copilot SDK source available at C:\src\copilot-sdk for verifying API contracts during implementation.
+- architecture: CronJobStatus should only persist Enabled/Disabled — Running is a transient runtime state tracked in-memory via HashSet. Persisting Running causes a crash recovery bug where jobs get stuck forever after unclean shutdown.
+- design: Fat interfaces (ISP violation) catch: ICronJobStore originally had 8 methods spanning job CRUD + run history. Split into ICronJobStore (6 methods) + ICronRunHistoryStore (2 methods) so consumers depend only on what they use.
+- design: Engine hosted services should not inject IHubContext directly — use an ICronOutputSink abstraction to decouple high-level policy from infrastructure. Same pattern applies to any hosted service that publishes to external consumers.
+- design: Pure computation (schedule calculation, stagger offsets) should be extracted from orchestrator classes into static helpers for SRP and trivial testability.
+- design: In-memory canonical state with flush-on-mutate eliminates the load-modify-save race condition between concurrent CRUD operations and timer ticks reading from the same file.
+- tooling: Spec test runner (Invoke-SpecTests.ps1) is under active refactoring — spec test definitions should be created for acceptance criteria but not referenced as executable gates in task lists.
 - architecture: Cron system uses four-layer design: CronToolProvider (IToolProvider) → CronEngine (IHostedService) → CronJobStore (persistence) → ICronJobExecutor (dispatch by payload type). Engine never knows about payload specifics.
 - serialization: [JsonPolymorphic] + [JsonDerivedType] on abstract records is the right pattern for discriminated unions in System.Text.Json — produces clean `"type": "prompt"` discriminator fields.
 - signalr: Each distinct server→client push type gets its own method on IGatewayHubClient (ReceiveEvent, ReceivePresence, ReceiveAuthContext, ReceiveCronResult). Route by method name, not by payload inspection.
