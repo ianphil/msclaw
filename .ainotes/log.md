@@ -24,3 +24,5 @@
 - sdk: Copilot SDK snapshots tools into internal Dictionary<string, AIFunction> at session creation. Modifying the original List<AIFunction> after CreateSessionAsync has zero effect — only ResumeSessionAsync updates the CLI.
 - sdk: ResumeSessionAsync returns a NEW CopilotSession object. The old session reference is stale. Callers must swap via SessionPool.ReplaceAsync.
 - pattern: Deferred tool sync — expand_tools adds tools to in-memory list and returns immediately. Before next SendAsync, SyncToolsIfNeededAsync detects count drift and calls ResumeSessionAsync. Tools callable on next message, not current turn.
+- cron: Discriminated JobPayload design (PromptPayload vs CommandPayload) with pluggable ICronJobExecutor — new job types require zero engine changes, just a new executor + payload variant.
+- cron: CommandPayload enables deterministic work (shell commands) without LLM sessions or token cost. PromptPayload creates isolated sessions via SessionPool with full tool surface.
