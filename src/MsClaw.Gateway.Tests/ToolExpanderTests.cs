@@ -20,7 +20,7 @@ public class ToolExpanderTests
     }
 
     [Fact]
-    public async Task CreateExpandToolsFunction_NamesMode_AppendsToolsAndResumesSession()
+    public async Task CreateExpandToolsFunction_NamesMode_AppendsToolsToSessionList()
     {
         var catalog = new StubToolCatalog();
         var tool = CreateFunction("tool_a", "Tool A");
@@ -41,10 +41,6 @@ public class ToolExpanderTests
             new AIFunctionArguments(new Dictionary<string, object?> { ["names"] = new[] { "tool_a" } }),
             CancellationToken.None);
 
-        Assert.Equal(1, gatewayClient.ResumeSessionCallCount);
-        Assert.Equal("session-1", gatewayClient.LastResumedSessionId);
-        Assert.NotNull(gatewayClient.LastResumeSessionConfig);
-        Assert.Equal(["base_tool", "tool_a"], gatewayClient.LastResumeSessionConfig!.Tools!.Select(static toolEntry => toolEntry.Name));
         Assert.Equal(["base_tool", "tool_a"], currentTools.Select(static toolEntry => toolEntry.Name));
 
         var json = Assert.IsType<JsonElement>(result);
@@ -80,7 +76,7 @@ public class ToolExpanderTests
             new AIFunctionArguments(new Dictionary<string, object?> { ["names"] = new[] { "provider-a" } }),
             CancellationToken.None);
 
-        Assert.Equal(1, gatewayClient.ResumeSessionCallCount);
+        Assert.Equal(0, gatewayClient.ResumeSessionCallCount);
         Assert.Equal(["tool_a", "tool_b"], currentTools.Select(static tool => tool.Name));
 
         var json = Assert.IsType<JsonElement>(result);
@@ -112,7 +108,7 @@ public class ToolExpanderTests
     }
 
     [Fact]
-    public async Task CreateExpandToolsFunction_UnboundSession_ReturnsErrorResult()
+    public async Task CreateExpandToolsFunction_UnboundSession_StillAppendsTools()
     {
         var catalog = new StubToolCatalog();
         catalog.AddDescriptor(new ToolDescriptor
@@ -122,17 +118,18 @@ public class ToolExpanderTests
             Tier = ToolSourceTier.Bundled
         });
         var gatewayClient = new StubGatewayClient();
+        var currentTools = new List<AIFunction>();
         var sut = new ToolExpander(catalog, gatewayClient, TimeSpan.FromMilliseconds(25));
-        var function = sut.CreateExpandToolsFunction(new SessionHolder(), []);
+        var function = sut.CreateExpandToolsFunction(new SessionHolder(), currentTools);
 
         var result = await function.InvokeAsync(
             new AIFunctionArguments(new Dictionary<string, object?> { ["names"] = new[] { "tool_a" } }),
             CancellationToken.None);
 
-        Assert.Equal(0, gatewayClient.ResumeSessionCallCount);
+        Assert.Equal(["tool_a"], currentTools.Select(static tool => tool.Name));
 
         var json = Assert.IsType<JsonElement>(result);
-        Assert.Equal("Session is not yet bound.", GetProperty(json, "Error").GetString());
+        Assert.Equal(1, GetProperty(json, "Count").GetInt32());
     }
 
     [Fact]

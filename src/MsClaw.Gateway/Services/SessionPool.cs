@@ -63,6 +63,19 @@ public sealed class SessionPool : ISessionPool
     }
 
     /// <summary>
+    /// Replaces the pooled session for the caller with a new session without disposing the old one.
+    /// </summary>
+    public Task ReplaceAsync(string callerKey, IGatewaySession newSession)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(callerKey);
+        ArgumentNullException.ThrowIfNull(newSession);
+
+        sessions[callerKey] = new TrackedSession(newSession);
+
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
     /// Disposes and removes the session for the caller. No-op when no session is tracked.
     /// </summary>
     public async Task RemoveAsync(string callerKey)

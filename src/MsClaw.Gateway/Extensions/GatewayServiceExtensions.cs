@@ -88,6 +88,7 @@ public static class GatewayServiceExtensions
         services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayClientProxy>());
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<IToolExpander, ToolExpander>();
+        services.AddSingleton<IToolProvider, EchoToolProvider>();
         services.AddSingleton<AgentMessageService>();
         services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ToolBridgeHostedService>());

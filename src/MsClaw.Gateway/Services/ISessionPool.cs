@@ -18,6 +18,11 @@ public interface ISessionPool : IAsyncDisposable
     IGatewaySession? TryGet(string callerKey);
 
     /// <summary>
+    /// Replaces the pooled session for the caller with a new session.
+    /// </summary>
+    Task ReplaceAsync(string callerKey, IGatewaySession newSession);
+
+    /// <summary>
     /// Disposes and removes the session for the caller. No-op when no session is tracked.
     /// </summary>
     Task RemoveAsync(string callerKey);

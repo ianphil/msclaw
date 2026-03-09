@@ -19,6 +19,7 @@ public sealed class AgentMessageService
     private readonly IToolCatalog toolCatalog;
     private readonly IToolExpander toolExpander;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> activeRuns = new();
+    private readonly ConcurrentDictionary<string, ToolSyncState> toolSyncStates = new();
 
     /// <summary>
     /// Initializes the service with the shared coordination, session pool, and hosting dependencies.
@@ -71,6 +72,7 @@ public sealed class AgentMessageService
         try
         {
             var session = await GetOrCreateSessionAsync(callerKey, linkedCts.Token);
+            session = await SyncToolsIfNeededAsync(callerKey, session, linkedCts.Token);
 
             var (subscription, events) = SessionEventBridge.Bridge(session, linkedCts.Token);
             try
@@ -135,9 +137,41 @@ public sealed class AgentMessageService
 
             var session = await client.CreateSessionAsync(sessionConfig, ct);
             sessionHolder.Bind(session);
+            toolSyncStates[callerKey] = new ToolSyncState(tools, tools.Count);
 
             return session;
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resumes the session with an updated tool list when expand_tools has added tools since the last sync.
+    /// </summary>
+    private async Task<IGatewaySession> SyncToolsIfNeededAsync(string callerKey, IGatewaySession session, CancellationToken cancellationToken)
+    {
+        if (toolSyncStates.TryGetValue(callerKey, out var state) is false || state.Tools.Count <= state.SyncedCount)
+        {
+            return session;
+        }
+
+        var resumed = await client.ResumeSessionAsync(
+            session.SessionId,
+            new ResumeSessionConfig { Tools = state.Tools },
+            cancellationToken);
+
+        state.SyncedCount = state.Tools.Count;
+        await sessionPool.ReplaceAsync(callerKey, resumed);
+
+        return resumed;
+    }
+
+    /// <summary>
+    /// Tracks the mutable tool list and how many tools the CLI knows about.
+    /// </summary>
+    private sealed class ToolSyncState(IList<AIFunction> tools, int syncedCount)
+    {
+        public IList<AIFunction> Tools { get; } = tools;
+
+        public int SyncedCount { get; set; } = syncedCount;
     }
 
     /// <summary>

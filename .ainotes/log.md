@@ -20,3 +20,7 @@
 - sdk: AIFunctionFactory serializes record results with camelCase JSON property names by default, so tests should read tool results case-insensitively or expect camelCase.
 - testing: ServiceProvider instances that own IAsyncDisposable services like SessionPool must be disposed with `await using`; plain `using` throws at teardown.
 - hosting: Provider watch loops should live in a hosted service and back off after refresh failures so registrar logic stays synchronous and errors do not spin in a tight retry loop.
+- sdk: DEADLOCK — never call ResumeSessionAsync from inside a tool handler. The CLI blocks on the tool result via JSON-RPC; ResumeSession sends a new RPC to the same blocked CLI. Use deferred sync instead.
+- sdk: Copilot SDK snapshots tools into internal Dictionary<string, AIFunction> at session creation. Modifying the original List<AIFunction> after CreateSessionAsync has zero effect — only ResumeSessionAsync updates the CLI.
+- sdk: ResumeSessionAsync returns a NEW CopilotSession object. The old session reference is stale. Callers must swap via SessionPool.ReplaceAsync.
+- pattern: Deferred tool sync — expand_tools adds tools to in-memory list and returns immediately. Before next SendAsync, SyncToolsIfNeededAsync detects count drift and calls ResumeSessionAsync. Tools callable on next message, not current turn.

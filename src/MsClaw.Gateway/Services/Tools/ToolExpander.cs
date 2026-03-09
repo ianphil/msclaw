@@ -1,5 +1,3 @@
-using System.Text.Json;
-using GitHub.Copilot.SDK;
 using Microsoft.Extensions.AI;
 using MsClaw.Gateway.Hosting;
 
@@ -10,32 +8,23 @@ namespace MsClaw.Gateway.Services.Tools;
 /// </summary>
 public sealed class ToolExpander : IToolExpander
 {
-    private static readonly TimeSpan DefaultSessionBindTimeout = TimeSpan.FromSeconds(5);
-
     private readonly IToolCatalog toolCatalog;
-    private readonly IGatewayClient gatewayClient;
-    private readonly TimeSpan sessionBindTimeout;
 
     /// <summary>
-    /// Initializes the expander with the catalog and gateway client needed to mutate sessions.
+    /// Initializes the expander with the catalog and gateway client dependencies.
     /// </summary>
     public ToolExpander(IToolCatalog toolCatalog, IGatewayClient gatewayClient)
-        : this(toolCatalog, gatewayClient, DefaultSessionBindTimeout)
     {
+        ArgumentNullException.ThrowIfNull(toolCatalog);
+        this.toolCatalog = toolCatalog;
     }
 
     /// <summary>
-    /// Initializes the expander with an explicit session-bind timeout for targeted testing.
+    /// Initializes the expander with an explicit session-bind timeout (reserved for future deferred resume).
     /// </summary>
     internal ToolExpander(IToolCatalog toolCatalog, IGatewayClient gatewayClient, TimeSpan sessionBindTimeout)
+        : this(toolCatalog, gatewayClient)
     {
-        ArgumentNullException.ThrowIfNull(toolCatalog);
-        ArgumentNullException.ThrowIfNull(gatewayClient);
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(sessionBindTimeout, TimeSpan.Zero);
-
-        this.toolCatalog = toolCatalog;
-        this.gatewayClient = gatewayClient;
-        this.sessionBindTimeout = sessionBindTimeout;
     }
 
     /// <summary>
@@ -56,7 +45,7 @@ public sealed class ToolExpander : IToolExpander
     /// <summary>
     /// Resolves query and load requests for expand_tools.
     /// </summary>
-    private async Task<object> ExpandToolsAsync(
+    private Task<object> ExpandToolsAsync(
         SessionHolder sessionHolder,
         IList<AIFunction> currentSessionTools,
         string[]? names,
@@ -67,12 +56,12 @@ public sealed class ToolExpander : IToolExpander
         {
             var matches = toolCatalog.SearchTools(query);
 
-            return new ExpandToolsQueryResult(matches.ToArray(), matches.Count);
+            return Task.FromResult<object>(new ExpandToolsQueryResult(matches.ToArray(), matches.Count));
         }
 
         if (names is null || names.Length == 0)
         {
-            return new ExpandToolsLoadResult([], [], 0, "Provide either query or names.");
+            return Task.FromResult<object>(new ExpandToolsLoadResult([], [], 0, "Provide either query or names.", null));
         }
 
         var resolvedNames = ResolveRequestedToolNames(names);
@@ -84,24 +73,12 @@ public sealed class ToolExpander : IToolExpander
 
         if (enabledNames.Count == 0)
         {
-            return new ExpandToolsLoadResult([], skippedNames, 0, null);
+            return Task.FromResult<object>(new ExpandToolsLoadResult([], skippedNames, 0, null, null));
         }
 
-        var session = await TryGetBoundSessionAsync(sessionHolder, cancellationToken);
-        if (session is null)
-        {
-            return new ExpandToolsLoadResult([], skippedNames, 0, "Session is not yet bound.");
-        }
-
-        await gatewayClient.ResumeSessionAsync(
-            session.SessionId,
-            new ResumeSessionConfig
-            {
-                Tools = currentSessionTools
-            },
-            cancellationToken);
-
-        return new ExpandToolsLoadResult(enabledNames.ToArray(), skippedNames, enabledNames.Count, null);
+        return Task.FromResult<object>(new ExpandToolsLoadResult(
+            enabledNames.ToArray(), skippedNames, enabledNames.Count, null,
+            "Tools will be callable on the next message. Tell the user to send a follow-up."));
     }
 
     /// <summary>
@@ -159,27 +136,9 @@ public sealed class ToolExpander : IToolExpander
     }
 
     /// <summary>
-    /// Waits for the session binding to complete and converts timeout into a tool-shaped error result.
-    /// </summary>
-    private async Task<IGatewaySession?> TryGetBoundSessionAsync(SessionHolder sessionHolder, CancellationToken cancellationToken)
-    {
-        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(sessionBindTimeout);
-
-        try
-        {
-            return await sessionHolder.GetSessionAsync().WaitAsync(timeoutCts.Token);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested is false)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
     /// Represents the JSON result returned when expand_tools enables tools.
     /// </summary>
-    private sealed record ExpandToolsLoadResult(string[] Enabled, string[] Skipped, int Count, string? Error);
+    private sealed record ExpandToolsLoadResult(string[] Enabled, string[] Skipped, int Count, string? Error, string? Note);
 
     /// <summary>
     /// Represents the JSON result returned when expand_tools performs a search-only query.
