@@ -37,3 +37,4 @@
 - pattern: Deferred tool sync — expand_tools adds tools to in-memory list and returns immediately. Before next SendAsync, SyncToolsIfNeededAsync detects count drift and calls ResumeSessionAsync. Tools callable on next message, not current turn.
 - cron: Discriminated JobPayload design (PromptPayload vs CommandPayload) with pluggable ICronJobExecutor — new job types require zero engine changes, just a new executor + payload variant.
 - cron: CommandPayload enables deterministic work (shell commands) without LLM sessions or token cost. PromptPayload creates isolated sessions via SessionPool with full tool surface.
+- testing: Record equality on array-typed payloads is reference-based, so JSON round-trip tests should compare array contents instead of whole-record equality.

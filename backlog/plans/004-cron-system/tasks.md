@@ -39,22 +39,22 @@ Phase 1 (Models) ──► Phase 2 (Persistence) ──► Phase 3 (Executors + 
 Define record types, enums, and value objects. No behavior — just data structures and serialization.
 
 ### CronJob Model
-- [ ] T001 [TEST] Write test that `CronJob` is a sealed record with required `Id`, `Name`, `Schedule`, `Payload`, `Status` properties and optional `MaxConcurrency` (default 1), `CreatedAtUtc`, `LastRunAtUtc`, `NextRunAtUtc`, `Backoff` fields
-- [ ] T002 [IMPL] Implement `CronJob` record and `CronJobStatus` enum (`Enabled`, `Disabled` — no `Running`, that's in-memory only) in `Services/Cron/CronJob.cs`
+- [x] T001 [TEST] Write test that `CronJob` is a sealed record with required `Id`, `Name`, `Schedule`, `Payload`, `Status` properties and optional `MaxConcurrency` (default 1), `CreatedAtUtc`, `LastRunAtUtc`, `NextRunAtUtc`, `Backoff` fields
+- [x] T002 [IMPL] Implement `CronJob` record and `CronJobStatus` enum (`Enabled`, `Disabled` — no `Running`, that's in-memory only) in `Services/Cron/CronJob.cs`
 
 ### Schedule Types
-- [ ] T003 [TEST] Write test that `JobSchedule` serializes polymorphically with `type` discriminator: `OneShotSchedule` → `"oneShot"`, `FixedIntervalSchedule` → `"fixedInterval"`, `CronExpressionSchedule` → `"cron"`. Round-trip through JSON.
-- [ ] T004 [IMPL] Implement `JobSchedule` abstract record with `[JsonPolymorphic]`, `OneShotSchedule(DateTimeOffset FireAtUtc)`, `FixedIntervalSchedule(long IntervalMs)`, `CronExpressionSchedule(string Expression, string? Timezone)`
+- [x] T003 [TEST] Write test that `JobSchedule` serializes polymorphically with `type` discriminator: `OneShotSchedule` → `"oneShot"`, `FixedIntervalSchedule` → `"fixedInterval"`, `CronExpressionSchedule` → `"cron"`. Round-trip through JSON.
+- [x] T004 [IMPL] Implement `JobSchedule` abstract record with `[JsonPolymorphic]`, `OneShotSchedule(DateTimeOffset FireAtUtc)`, `FixedIntervalSchedule(long IntervalMs)`, `CronExpressionSchedule(string Expression, string? Timezone)`
 
 ### Payload Types
-- [ ] T005 [TEST] Write test that `JobPayload` serializes polymorphically with `type` discriminator: `PromptPayload` → `"prompt"`, `CommandPayload` → `"command"`. Round-trip with all fields.
-- [ ] T006 [IMPL] Implement `JobPayload` abstract record with `[JsonPolymorphic]`, `PromptPayload(string Prompt, string[]? PreloadToolNames, string? Model)`, `CommandPayload(string Command, string? Arguments, string? WorkingDirectory, int TimeoutSeconds = 300)`
+- [x] T005 [TEST] Write test that `JobPayload` serializes polymorphically with `type` discriminator: `PromptPayload` → `"prompt"`, `CommandPayload` → `"command"`. Round-trip with all fields.
+- [x] T006 [IMPL] Implement `JobPayload` abstract record with `[JsonPolymorphic]`, `PromptPayload(string Prompt, string[]? PreloadToolNames, string? Model)`, `CommandPayload(string Command, string? Arguments, string? WorkingDirectory, int TimeoutSeconds = 300)`
 
 ### Result and History Models
-- [ ] T007 [TEST] Write test that `CronRunResult` is a sealed record with `Content`, `Outcome`, `ErrorMessage?`, `DurationMs`, `IsTransient` fields. `CronRunOutcome` enum has Success and Failure values.
-- [ ] T008 [IMPL] Implement `CronRunResult` record and `CronRunOutcome` enum in `Services/Cron/CronRunResult.cs`
-- [ ] T009 [TEST] Write test that `CronRunRecord` is a sealed record with `RunId`, `JobId`, `StartedAtUtc`, `CompletedAtUtc`, `Outcome`, `ErrorMessage?`, `DurationMs` fields. Round-trip JSON serialization.
-- [ ] T010 [IMPL] Implement `CronRunRecord` record in `Services/Cron/CronRunHistory.cs`
+- [x] T007 [TEST] Write test that `CronRunResult` is a sealed record with `Content`, `Outcome`, `ErrorMessage?`, `DurationMs`, `IsTransient` fields. `CronRunOutcome` enum has Success and Failure values.
+- [x] T008 [IMPL] Implement `CronRunResult` record and `CronRunOutcome` enum in `Services/Cron/CronRunResult.cs`
+- [x] T009 [TEST] Write test that `CronRunRecord` is a sealed record with `RunId`, `JobId`, `StartedAtUtc`, `CompletedAtUtc`, `Outcome`, `ErrorMessage?`, `DurationMs` fields. Round-trip JSON serialization.
+- [x] T010 [IMPL] Implement `CronRunRecord` record in `Services/Cron/CronRunHistory.cs`
 
 ## Phase 2: Persistence
 
