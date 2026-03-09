@@ -12,3 +12,5 @@
 - planning: SessionHolder upgraded from nullable property to TaskCompletionSource<IGatewaySession> — eliminates race conditions between session creation and expand_tools invocation. Callers await rather than null-check.
 - planning: WaitForSurfaceChangeAsync watch loops moved from registrar to ToolBridgeHostedService — mutation driver (hosted service) separated from mutation executor (registrar) for testability.
 - testing: Gateway internal infrastructure tests need InternalsVisibleTo in MsClaw.Gateway when new non-public services like ToolCatalogStore are introduced.
+- sdk: AIFunctionFactory.Create requires default-valued optional parameters when expand_tools supports either names or query input; omitted required parameters fail binding before handler logic runs.
+- sdk: AIFunctionFactory serializes record results with camelCase JSON property names by default, so tests should read tool results case-insensitively or expect camelCase.

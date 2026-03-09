@@ -90,23 +90,23 @@ Shared `ToolCatalogStore` holds the `ConcurrentDictionary` + status map + provid
 Creates per-session `expand_tools` AIFunction with load/query modes.
 
 ### expand_tools Creation
-- [ ] T029 [TEST] Write test: `CreateExpandToolsFunction` returns an `AIFunction` with name "expand_tools"
-- [ ] T030 [IMPL] Implement `ToolExpander.CreateExpandToolsFunction` — use `AIFunctionFactory.Create` with captured closure
+- [x] T029 [TEST] Write test: `CreateExpandToolsFunction` returns an `AIFunction` with name "expand_tools"
+- [x] T030 [IMPL] Implement `ToolExpander.CreateExpandToolsFunction` — use `AIFunctionFactory.Create` with captured closure
 
 ### Load Mode
-- [ ] T031 [TEST] Write test: expand_tools invoked with `names: ["tool_a"]` → fetches from catalog, appends to tool list, calls `ResumeSessionAsync` with updated tools
-- [ ] T032 [IMPL] Implement load mode — resolve provider names via `GetToolNamesByProvider`, fetch via `GetToolsByName`, mutate tool list, call `ResumeSessionAsync`
-- [ ] T033 [TEST] Write test: expand_tools with `names: ["providerA"]` → resolves to all tools from that provider
-- [ ] T034 [IMPL] Implement provider-name resolution — check if name matches a provider, expand to tool list
+- [x] T031 [TEST] Write test: expand_tools invoked with `names: ["tool_a"]` → fetches from catalog, appends to tool list, calls `ResumeSessionAsync` with updated tools
+- [x] T032 [IMPL] Implement load mode — resolve provider names via `GetToolNamesByProvider`, fetch via `GetToolsByName`, mutate tool list, call `ResumeSessionAsync`
+- [x] T033 [TEST] Write test: expand_tools with `names: ["providerA"]` → resolves to all tools from that provider
+- [x] T034 [IMPL] Implement provider-name resolution — check if name matches a provider, expand to tool list
 
 ### Query Mode
-- [ ] T035 [TEST] Write test: expand_tools invoked with `query: "send message"` → calls `SearchTools`, returns matching names without modifying session
-- [ ] T036 [IMPL] Implement query mode — delegate to `IToolCatalog.SearchTools`, return result object
+- [x] T035 [TEST] Write test: expand_tools invoked with `query: "send message"` → calls `SearchTools`, returns matching names without modifying session
+- [x] T036 [IMPL] Implement query mode — delegate to `IToolCatalog.SearchTools`, return result object
 
 ### Edge Cases
-- [ ] T037 [TEST] Write test: expand_tools invoked before session is bound → `GetSessionAsync` with timeout returns error result, does not throw
-- [ ] T038 [TEST] Write test: expand_tools with unknown tool name → silently skips, returns result noting which names were not found
-- [ ] T039 [IMPL] Implement edge case handling — `await GetSessionAsync()` with cancellation timeout, unknown name reporting
+- [x] T037 [TEST] Write test: expand_tools invoked before session is bound → `GetSessionAsync` with timeout returns error result, does not throw
+- [x] T038 [TEST] Write test: expand_tools with unknown tool name → silently skips, returns result noting which names were not found
+- [x] T039 [IMPL] Implement edge case handling — `await GetSessionAsync()` with cancellation timeout, unknown name reporting
 
 ## Phase 4: Integration
 
