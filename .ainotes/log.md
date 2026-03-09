@@ -8,6 +8,11 @@
 - design: expand_tools needs the session reference but the session needs expand_tools in its config — solved with deferred binding via SessionHolder wrapper and mutable tool list captured in closure.
 - design: Same-tier tool name collision is a hard error (InvalidOperationException), intentionally stricter than spec (which says log and skip). Makes DI registration order irrelevant.
 - reference: Copilot SDK source available at C:\src\copilot-sdk for verifying API contracts during implementation.
+- architecture: Cron system uses four-layer design: CronToolProvider (IToolProvider) → CronEngine (IHostedService) → CronJobStore (persistence) → ICronJobExecutor (dispatch by payload type). Engine never knows about payload specifics.
+- serialization: [JsonPolymorphic] + [JsonDerivedType] on abstract records is the right pattern for discriminated unions in System.Text.Json — produces clean `"type": "prompt"` discriminator fields.
+- signalr: Each distinct server→client push type gets its own method on IGatewayHubClient (ReceiveEvent, ReceivePresence, ReceiveAuthContext, ReceiveCronResult). Route by method name, not by payload inspection.
+- deps: Cronos 0.11.1 verified compatible with net10.0 — targets .NET 6.0+ and .NET Standard 1.0.
+- planning: Quick plans (backlog/plans/YYYYMMDD-slug.md) are superseded and deleted when expanded into full feature plans (backlog/plans/NNN-slug/).
 - bug: Windows Path.GetFullPath("~/path") treats ~ as a literal directory name, not home. CLI args need explicit ExpandHome before GetFullPath.
 - bug: SignalR abort race condition — AbortResponse cancelled the CTS but the SendAsync generator's finally block (gate release) ran asynchronously. Next message arrived before gate was freed. Fix: idempotent TryRelease + abort force-releases the gate.
 - ui: SignalR JS client subscription.dispose() stops delivering events to callbacks but the server stream continues until CancelInvocation arrives. Dispose subscription BEFORE awaiting server-side AbortResponse for instant UI feedback.
