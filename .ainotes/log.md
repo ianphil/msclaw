@@ -45,3 +45,7 @@
 - cron: Keep active job IDs and tracked execution tasks separate — `HashSet<string>` answers “is this job running?” while a task list lets shutdown await in-flight work cleanly.
 - di: Hosted services that also expose runtime interfaces should be registered as a concrete singleton first, then projected to both the interface and `AddHostedService`, so DI and background hosting share one instance.
 - testing: Extending `IGatewayHubClient` with a new strongly typed callback requires updating every test double that implements the hub client contract, not just the production hub sink.
+- concurrency: ConcurrentDictionary.ContainsKey+indexer is a TOCTOU race — use AddOrUpdate with a throwing addFactory for atomic check-and-modify when updating entries that must already exist.
+- refactoring: Pure state-transition functions (success/failure/backoff) belong in static helpers, not orchestrator classes — keeps the engine focused on dispatch and the transitions independently testable.
+- testing: Reflection-based property type/attribute tests add maintenance burden without catching bugs the compiler already enforces — prefer behavioral assertions on defaults and JSON round-trips.
+- resilience: File.Delete in finally blocks can throw IOException (e.g., antivirus lock on Windows), masking the real exception. Always guard cleanup I/O with try/catch.

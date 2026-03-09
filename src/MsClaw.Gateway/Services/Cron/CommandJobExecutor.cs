@@ -7,7 +7,6 @@ namespace MsClaw.Gateway.Services.Cron;
 /// </summary>
 public sealed class CommandJobExecutor : ICronJobExecutor
 {
-    private const int TimeoutExitCode = -1;
 
     /// <inheritdoc />
     public Type PayloadType => typeof(CommandPayload);
@@ -77,7 +76,6 @@ public sealed class CommandJobExecutor : ICronJobExecutor
             return process.ExitCode switch
             {
                 0 => new CronRunResult(output, CronRunOutcome.Success, null, stopwatch.ElapsedMilliseconds, false),
-                TimeoutExitCode => new CronRunResult(output, CronRunOutcome.Failure, $"The command timed out after {payload.TimeoutSeconds} seconds.", stopwatch.ElapsedMilliseconds, true),
                 _ => new CronRunResult(output, CronRunOutcome.Failure, $"The command exited with code {process.ExitCode}.", stopwatch.ElapsedMilliseconds, false)
             };
         }

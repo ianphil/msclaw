@@ -150,12 +150,11 @@ public sealed class CronJobStore : ICronJobStore, ICronRunHistoryStore
         ArgumentNullException.ThrowIfNull(job);
         EnsureInitialized();
 
-        if (jobs.ContainsKey(job.Id) is false)
-        {
-            throw new InvalidOperationException($"A cron job with ID '{job.Id}' does not exist.");
-        }
+        jobs.AddOrUpdate(
+            job.Id,
+            _ => throw new InvalidOperationException($"A cron job with ID '{job.Id}' does not exist."),
+            (_, _) => job);
 
-        jobs[job.Id] = job;
         await FlushJobsAsync(cancellationToken);
     }
 
@@ -276,9 +275,15 @@ public sealed class CronJobStore : ICronJobStore, ICronRunHistoryStore
         {
             flushLock.Release();
 
-            if (File.Exists(tempPath))
+            try
             {
-                File.Delete(tempPath);
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch (IOException)
+            {
             }
         }
     }

@@ -74,7 +74,6 @@ public sealed class CronEngineTests
         Assert.True(sut.IsJobActive("job-1"));
 
         await sut.OnTickAsync(CancellationToken.None);
-        await Task.Delay(TimeSpan.FromMilliseconds(50));
 
         Assert.Equal(["job-1"], executor.ExecutedJobIds);
 
