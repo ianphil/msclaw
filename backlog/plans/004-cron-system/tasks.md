@@ -149,18 +149,18 @@ Hosted service with `PeriodicTimer` that evaluates due jobs and dispatches to ex
 Implement `IToolProvider` with 7 tools delegating to `ICronJobStore` and `ICronRunHistoryStore`.
 
 ### Provider Contract
-- [ ] T057 [TEST] Write test: `CronToolProvider` implements `IToolProvider`. `Name` is `"cron"`. `Tier` is `Bundled`. `WaitForSurfaceChangeAsync` never completes (static surface).
-- [ ] T058 [TEST] Write test: `DiscoverAsync` returns exactly 7 `ToolDescriptor` instances with names `cron_create`, `cron_list`, `cron_get`, `cron_update`, `cron_delete`, `cron_pause`, `cron_resume`. All have `AlwaysVisible = true`.
-- [ ] T059 [IMPL] Implement `CronToolProvider` class skeleton — `IToolProvider` implementation with `AIFunctionFactory.Create` for each tool
+- [x] T057 [TEST] Write test: `CronToolProvider` implements `IToolProvider`. `Name` is `"cron"`. `Tier` is `Bundled`. `WaitForSurfaceChangeAsync` never completes (static surface).
+- [x] T058 [TEST] Write test: `DiscoverAsync` returns exactly 7 `ToolDescriptor` instances with names `cron_create`, `cron_list`, `cron_get`, `cron_update`, `cron_delete`, `cron_pause`, `cron_resume`. All have `AlwaysVisible = true`.
+- [x] T059 [IMPL] Implement `CronToolProvider` class skeleton — `IToolProvider` implementation with `AIFunctionFactory.Create` for each tool
 
 ### Tool Handlers
-- [ ] T060 [TEST] Write test: `cron_create` handler with name, schedule type "cron", expression, prompt → calls `ICronJobStore.AddJobAsync` with correct `CronJob`, `nextRunAtUtc` computed via `CronScheduleCalculator`
-- [ ] T061 [TEST] Write test: `cron_list` handler → calls `ICronJobStore.GetAllJobsAsync`, returns formatted summary
-- [ ] T062 [TEST] Write test: `cron_get` handler with `jobId` → calls `ICronJobStore.GetJobAsync` + `ICronRunHistoryStore.GetRunHistoryAsync` (separate interfaces)
-- [ ] T063 [TEST] Write test: `cron_delete` handler → calls `ICronJobStore.RemoveJobAsync`
-- [ ] T064 [TEST] Write test: `cron_pause` handler → loads job via `ICronJobStore.GetJobAsync`, updates status to Disabled, saves via `ICronJobStore.UpdateJobAsync`
-- [ ] T065 [TEST] Write test: `cron_resume` handler → loads job via `ICronJobStore.GetJobAsync`, updates status to Enabled, saves via `ICronJobStore.UpdateJobAsync`
-- [ ] T066 [IMPL] Implement all 7 tool handler methods delegating to `ICronJobStore` and `ICronRunHistoryStore`
+- [x] T060 [TEST] Write test: `cron_create` handler with name, schedule type "cron", expression, prompt → calls `ICronJobStore.AddJobAsync` with correct `CronJob`, `nextRunAtUtc` computed via `CronScheduleCalculator`
+- [x] T061 [TEST] Write test: `cron_list` handler → calls `ICronJobStore.GetAllJobsAsync`, returns formatted summary
+- [x] T062 [TEST] Write test: `cron_get` handler with `jobId` → calls `ICronJobStore.GetJobAsync` + `ICronRunHistoryStore.GetRunHistoryAsync` (separate interfaces)
+- [x] T063 [TEST] Write test: `cron_delete` handler → calls `ICronJobStore.RemoveJobAsync`
+- [x] T064 [TEST] Write test: `cron_pause` handler → loads job via `ICronJobStore.GetJobAsync`, updates status to Disabled, saves via `ICronJobStore.UpdateJobAsync`
+- [x] T065 [TEST] Write test: `cron_resume` handler → loads job via `ICronJobStore.GetJobAsync`, updates status to Enabled, saves via `ICronJobStore.UpdateJobAsync`
+- [x] T066 [IMPL] Implement all 7 tool handler methods delegating to `ICronJobStore` and `ICronRunHistoryStore`
 
 ## Phase 6: Integration
 
