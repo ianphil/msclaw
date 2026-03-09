@@ -4,6 +4,7 @@ using MsClaw.Core;
 using MsClaw.Gateway.Extensions;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Services;
+using MsClaw.Gateway.Services.Tools;
 using MsClaw.Tunnel;
 using Xunit;
 
@@ -80,5 +81,37 @@ public class StartCommandDiTests
         await using var provider = services.BuildServiceProvider();
 
         Assert.NotNull(provider.GetService<AgentMessageService>());
+    }
+
+    [Fact]
+    public async Task ConfigureServices_RegistersToolBridgeAsSharedCatalogAndRegistrarSingleton()
+    {
+        var services = new ServiceCollection();
+        var options = new GatewayOptions { MindPath = "C:\\mind" };
+
+        services.AddGatewayServices(CreateTestConfiguration(), options);
+
+        await using var provider = services.BuildServiceProvider();
+        var catalog = provider.GetRequiredService<IToolCatalog>();
+        var registrar = provider.GetRequiredService<IToolRegistrar>();
+
+        var bridge = Assert.IsType<ToolBridge>(catalog);
+        Assert.Same(bridge, registrar);
+    }
+
+    [Fact]
+    public async Task ConfigureServices_RegistersToolExpanderAsSingleton()
+    {
+        var services = new ServiceCollection();
+        var options = new GatewayOptions { MindPath = "C:\\mind" };
+
+        services.AddGatewayServices(CreateTestConfiguration(), options);
+
+        await using var provider = services.BuildServiceProvider();
+        var first = provider.GetRequiredService<IToolExpander>();
+        var second = provider.GetRequiredService<IToolExpander>();
+
+        Assert.IsType<ToolExpander>(first);
+        Assert.Same(first, second);
     }
 }

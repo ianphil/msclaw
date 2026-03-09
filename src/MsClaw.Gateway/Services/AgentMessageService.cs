@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using GitHub.Copilot.SDK;
+using Microsoft.Extensions.AI;
 using MsClaw.Gateway.Hosting;
+using MsClaw.Gateway.Services.Tools;
 
 namespace MsClaw.Gateway.Services;
 
@@ -13,6 +15,8 @@ public sealed class AgentMessageService
     private readonly ISessionPool sessionPool;
     private readonly IGatewayClient client;
     private readonly IGatewayHostedService hostedService;
+    private readonly IToolCatalog toolCatalog;
+    private readonly IToolExpander toolExpander;
 
     /// <summary>
     /// Initializes the service with the shared coordination, session pool, and hosting dependencies.
@@ -22,11 +26,27 @@ public sealed class AgentMessageService
         ISessionPool sessionPool,
         IGatewayClient client,
         IGatewayHostedService hostedService)
+        : this(concurrencyGate, sessionPool, client, hostedService, EmptyToolCatalog.Instance, EmptyToolExpander.Instance)
+    {
+    }
+
+    /// <summary>
+    /// Initializes the service with tool catalog dependencies used to populate per-session custom tools.
+    /// </summary>
+    public AgentMessageService(
+        IConcurrencyGate concurrencyGate,
+        ISessionPool sessionPool,
+        IGatewayClient client,
+        IGatewayHostedService hostedService,
+        IToolCatalog toolCatalog,
+        IToolExpander toolExpander)
     {
         this.concurrencyGate = concurrencyGate;
         this.sessionPool = sessionPool;
         this.client = client;
         this.hostedService = hostedService;
+        this.toolCatalog = toolCatalog;
+        this.toolExpander = toolExpander;
     }
 
     /// <summary>
@@ -76,6 +96,10 @@ public sealed class AgentMessageService
         return sessionPool.GetOrCreateAsync(callerKey, async ct =>
         {
             var sessionConfig = new SessionConfig { Streaming = true };
+            var tools = new List<AIFunction>(toolCatalog.GetDefaultTools());
+            var sessionHolder = new SessionHolder();
+            tools.Add(toolExpander.CreateExpandToolsFunction(sessionHolder, tools));
+            sessionConfig.Tools = tools;
             if (string.IsNullOrWhiteSpace(hostedService.SystemMessage) is false)
             {
                 sessionConfig.SystemMessage = new SystemMessageConfig
@@ -85,7 +109,64 @@ public sealed class AgentMessageService
                 };
             }
 
-            return await client.CreateSessionAsync(sessionConfig, ct);
+            var session = await client.CreateSessionAsync(sessionConfig, ct);
+            sessionHolder.Bind(session);
+
+            return session;
         }, cancellationToken);
+    }
+
+    /// <summary>
+    /// Provides an empty tool catalog for tests that exercise message flow without tool wiring.
+    /// </summary>
+    private sealed class EmptyToolCatalog : IToolCatalog
+    {
+        public static EmptyToolCatalog Instance { get; } = new();
+
+        public IReadOnlyList<AIFunction> GetDefaultTools()
+        {
+            return [];
+        }
+
+        public IReadOnlyList<AIFunction> GetToolsByName(IEnumerable<string> names)
+        {
+            return [];
+        }
+
+        public IReadOnlyList<string> GetCatalogToolNames()
+        {
+            return [];
+        }
+
+        public IReadOnlyList<string> GetToolNamesByProvider(string providerName)
+        {
+            return [];
+        }
+
+        public IReadOnlyList<string> SearchTools(string query)
+        {
+            return [];
+        }
+
+        public ToolDescriptor? GetDescriptor(string toolName)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Provides a no-op expander for tests that do not care about dynamic tool loading.
+    /// </summary>
+    private sealed class EmptyToolExpander : IToolExpander
+    {
+        public static EmptyToolExpander Instance { get; } = new();
+
+        public AIFunction CreateExpandToolsFunction(SessionHolder sessionHolder, IList<AIFunction> currentSessionTools)
+        {
+            return AIFunctionFactory.Create(
+                static () => new { },
+                "expand_tools",
+                "No-op expand_tools function used by message-flow tests.");
+        }
     }
 }

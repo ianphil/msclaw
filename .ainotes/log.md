@@ -14,3 +14,5 @@
 - testing: Gateway internal infrastructure tests need InternalsVisibleTo in MsClaw.Gateway when new non-public services like ToolCatalogStore are introduced.
 - sdk: AIFunctionFactory.Create requires default-valued optional parameters when expand_tools supports either names or query input; omitted required parameters fail binding before handler logic runs.
 - sdk: AIFunctionFactory serializes record results with camelCase JSON property names by default, so tests should read tool results case-insensitively or expect camelCase.
+- testing: ServiceProvider instances that own IAsyncDisposable services like SessionPool must be disposed with `await using`; plain `using` throws at teardown.
+- hosting: Provider watch loops should live in a hosted service and back off after refresh failures so registrar logic stays synchronous and errors do not spin in a tight retry loop.

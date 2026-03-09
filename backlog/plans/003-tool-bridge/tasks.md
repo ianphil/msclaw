@@ -113,20 +113,20 @@ Creates per-session `expand_tools` AIFunction with load/query modes.
 Wire ToolCatalogStore, ToolBridge, ToolRegistrar, and ToolExpander into gateway DI, session creation, and startup. Hosted service owns provider registration AND watch loops.
 
 ### DI Registration
-- [ ] T041 [TEST] Write test: resolve `IToolCatalog` from service provider → resolves to `ToolBridge`; resolve `IToolRegistrar` → resolves to `ToolRegistrar`; both share the same `ToolCatalogStore`
-- [ ] T042 [TEST] Write test: resolve `IToolExpander` from service provider → resolves to `ToolExpander`
-- [ ] T043 [IMPL] Register services in `GatewayServiceExtensions.AddGatewayServices` — `ToolCatalogStore` singleton, `ToolBridge` as `IToolCatalog` singleton, `ToolRegistrar` as `IToolRegistrar` singleton, `ToolExpander` singleton
+- [x] T041 [TEST] Write test: resolve `IToolCatalog` from service provider → resolves to `ToolBridge`; resolve `IToolRegistrar` → resolves to `ToolRegistrar`; both share the same `ToolCatalogStore`
+- [x] T042 [TEST] Write test: resolve `IToolExpander` from service provider → resolves to `ToolExpander`
+- [x] T043 [IMPL] Register services in `GatewayServiceExtensions.AddGatewayServices` — `ToolCatalogStore` singleton, `ToolBridge` as `IToolCatalog` singleton, `ToolRegistrar` as `IToolRegistrar` singleton, `ToolExpander` singleton
 
 ### Session Creation
-- [ ] T044 [TEST] Write test: `AgentMessageService.GetOrCreateSessionAsync` creates session with `SessionConfig.Tools` containing catalog default tools + expand_tools
-- [ ] T045 [TEST] Write test: session config does NOT set `AvailableTools` or `ExcludedTools`
-- [ ] T046 [IMPL] Modify `AgentMessageService.GetOrCreateSessionAsync` — inject `IToolCatalog` + `IToolExpander`, build tool list, populate `SessionConfig.Tools`, bind session to `SessionHolder`
+- [x] T044 [TEST] Write test: `AgentMessageService.GetOrCreateSessionAsync` creates session with `SessionConfig.Tools` containing catalog default tools + expand_tools
+- [x] T045 [TEST] Write test: session config does NOT set `AvailableTools` or `ExcludedTools`
+- [x] T046 [IMPL] Modify `AgentMessageService.GetOrCreateSessionAsync` — inject `IToolCatalog` + `IToolExpander`, build tool list, populate `SessionConfig.Tools`, bind session to `SessionHolder`
 
 ### Hosted Service — Provider Registration + Watch Loops
-- [ ] T047 [TEST] Write test: `ToolBridgeHostedService.StartAsync` registers all `IToolProvider` instances via `IToolRegistrar`
-- [ ] T048 [TEST] Write test: after registration, hosted service starts per-provider `WaitForSurfaceChangeAsync` loop and calls `RefreshProviderAsync` when signal fires
-- [ ] T049 [TEST] Write test: `ToolBridgeHostedService.StopAsync` cancels watch loops and unregisters all providers
-- [ ] T050 [IMPL] Implement `ToolBridgeHostedService` — iterate `IEnumerable<IToolProvider>`, register each, start watch loops with per-provider `CancellationTokenSource`, handle individual failures
+- [x] T047 [TEST] Write test: `ToolBridgeHostedService.StartAsync` registers all `IToolProvider` instances via `IToolRegistrar`
+- [x] T048 [TEST] Write test: after registration, hosted service starts per-provider `WaitForSurfaceChangeAsync` loop and calls `RefreshProviderAsync` when signal fires
+- [x] T049 [TEST] Write test: `ToolBridgeHostedService.StopAsync` cancels watch loops and unregisters all providers
+- [x] T050 [IMPL] Implement `ToolBridgeHostedService` — iterate `IEnumerable<IToolProvider>`, register each, start watch loops with per-provider `CancellationTokenSource`, handle individual failures
 
 ## Task Summary
 
@@ -142,5 +142,5 @@ Wire ToolCatalogStore, ToolBridge, ToolRegistrar, and ToolExpander into gateway 
 
 After all implementation phases are complete:
 
-- [ ] `dotnet build src/MsClaw.slnx --nologo` passes
-- [ ] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes
+- [x] `dotnet build src/MsClaw.slnx --nologo` passes
+- [x] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes

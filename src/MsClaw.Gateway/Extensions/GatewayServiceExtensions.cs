@@ -7,6 +7,7 @@ using MsClaw.Gateway.Auth;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Hubs;
 using MsClaw.Gateway.Services;
+using MsClaw.Gateway.Services.Tools;
 using MsClaw.OpenResponses;
 using MsClaw.Tunnel;
 
@@ -77,13 +78,19 @@ public static class GatewayServiceExtensions
         services.AddSingleton<CallerRegistry>();
         services.AddSingleton<IConcurrencyGate>(serviceProvider => serviceProvider.GetRequiredService<CallerRegistry>());
         services.AddSingleton<ISessionPool, SessionPool>();
+        services.AddSingleton<ToolBridge>();
+        services.AddSingleton<IToolCatalog>(serviceProvider => serviceProvider.GetRequiredService<ToolBridge>());
+        services.AddSingleton<IToolRegistrar>(serviceProvider => serviceProvider.GetRequiredService<ToolBridge>());
+        services.AddSingleton<ToolBridgeHostedService>();
         services.AddSingleton<GatewayHostedService>();
         services.AddSingleton<GatewayTunnelHostedService>();
         services.AddSingleton<GatewayClientProxy>();
         services.AddSingleton<IGatewayClient>(serviceProvider => serviceProvider.GetRequiredService<GatewayClientProxy>());
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
+        services.AddSingleton<IToolExpander, ToolExpander>();
         services.AddSingleton<AgentMessageService>();
         services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
+        services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ToolBridgeHostedService>());
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayTunnelHostedService>());
         services.AddHostedService<TokenRefreshService>();
