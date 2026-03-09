@@ -167,21 +167,21 @@ Implement `IToolProvider` with 7 tools delegating to `ICronJobStore` and `ICronR
 Wire all cron services into gateway DI, register hosted service, verify end-to-end.
 
 ### DI Registration
-- [ ] T067 [TEST] Write test: resolve `ICronJobStore` from service provider → resolves to `CronJobStore`
-- [ ] T068 [TEST] Write test: resolve `ICronRunHistoryStore` from service provider → resolves to same `CronJobStore` instance (implements both interfaces)
-- [ ] T069 [TEST] Write test: resolve `ICronEngine` from service provider → resolves to `CronEngine`
-- [ ] T070 [TEST] Write test: resolve `IEnumerable<ICronJobExecutor>` → contains `PromptJobExecutor` and `CommandJobExecutor`
-- [ ] T071 [TEST] Write test: resolve `IEnumerable<IToolProvider>` → contains instance with Name "cron"
-- [ ] T072 [TEST] Write test: resolve `ICronErrorClassifier` from service provider → resolves to `DefaultCronErrorClassifier`
-- [ ] T073 [TEST] Write test: resolve `ICronOutputSink` from service provider → resolves to `SignalRCronOutputSink`
-- [ ] T074 [IMPL] Register all cron services in `GatewayServiceExtensions.AddGatewayServices`: `CronJobStore` as both `ICronJobStore` and `ICronRunHistoryStore` (singleton), `CronEngine` as `ICronEngine` + `IHostedService`, `CronToolProvider` as `IToolProvider`, executors as `ICronJobExecutor`, `DefaultCronErrorClassifier` as `ICronErrorClassifier`, `SignalRCronOutputSink` as `ICronOutputSink`
+- [x] T067 [TEST] Write test: resolve `ICronJobStore` from service provider → resolves to `CronJobStore`
+- [x] T068 [TEST] Write test: resolve `ICronRunHistoryStore` from service provider → resolves to same `CronJobStore` instance (implements both interfaces)
+- [x] T069 [TEST] Write test: resolve `ICronEngine` from service provider → resolves to `CronEngine`
+- [x] T070 [TEST] Write test: resolve `IEnumerable<ICronJobExecutor>` → contains `PromptJobExecutor` and `CommandJobExecutor`
+- [x] T071 [TEST] Write test: resolve `IEnumerable<IToolProvider>` → contains instance with Name "cron"
+- [x] T072 [TEST] Write test: resolve `ICronErrorClassifier` from service provider → resolves to `DefaultCronErrorClassifier`
+- [x] T073 [TEST] Write test: resolve `ICronOutputSink` from service provider → resolves to `SignalRCronOutputSink`
+- [x] T074 [IMPL] Register all cron services in `GatewayServiceExtensions.AddGatewayServices`: `CronJobStore` as both `ICronJobStore` and `ICronRunHistoryStore` (singleton), `CronEngine` as `ICronEngine` + `IHostedService`, `CronToolProvider` as `IToolProvider`, executors as `ICronJobExecutor`, `DefaultCronErrorClassifier` as `ICronErrorClassifier`, `SignalRCronOutputSink` as `ICronOutputSink`
 
 ### NuGet Package
-- [ ] T075 [IMPL] Add `Cronos` NuGet package to `MsClaw.Gateway.csproj`
+- [x] T075 [IMPL] Add `Cronos` NuGet package to `MsClaw.Gateway.csproj`
 
 ### Output Sink
-- [ ] T076 [TEST] Write test: `SignalRCronOutputSink.PublishResultAsync` calls `IHubContext<GatewayHub, IGatewayHubClient>.Clients.All.ReceiveCronResult()` with a `CronRunEvent` containing job ID, job name, run ID, outcome, content, and duration
-- [ ] T077 [IMPL] Define `ICronOutputSink` interface in `Services/Cron/ICronOutputSink.cs`. Define `CronRunEvent` sealed record (JobId, JobName, RunId, Outcome, Content, ErrorMessage?, DurationMs). Implement `SignalRCronOutputSink` injecting `IHubContext<GatewayHub, IGatewayHubClient>`. Add `ReceiveCronResult(CronRunEvent)` method to `IGatewayHubClient`.
+- [x] T076 [TEST] Write test: `SignalRCronOutputSink.PublishResultAsync` calls `IHubContext<GatewayHub, IGatewayHubClient>.Clients.All.ReceiveCronResult()` with a `CronRunEvent` containing job ID, job name, run ID, outcome, content, and duration
+- [x] T077 [IMPL] Define `ICronOutputSink` interface in `Services/Cron/ICronOutputSink.cs`. Define `CronRunEvent` sealed record (JobId, JobName, RunId, Outcome, Content, ErrorMessage?, DurationMs). Implement `SignalRCronOutputSink` injecting `IHubContext<GatewayHub, IGatewayHubClient>`. Add `ReceiveCronResult(CronRunEvent)` method to `IGatewayHubClient`.
 
 ## Task Summary
 
@@ -199,5 +199,5 @@ Wire all cron services into gateway DI, register hosted service, verify end-to-e
 
 After all implementation phases are complete:
 
-- [ ] `dotnet build src/MsClaw.slnx --nologo` passes
-- [ ] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes
+- [x] `dotnet build src/MsClaw.slnx --nologo` passes
+- [x] `dotnet test src/MsClaw.Gateway.Tests/MsClaw.Gateway.Tests.csproj --nologo` passes

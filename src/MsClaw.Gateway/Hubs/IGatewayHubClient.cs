@@ -1,4 +1,5 @@
 using GitHub.Copilot.SDK;
+using MsClaw.Gateway.Services.Cron;
 
 namespace MsClaw.Gateway.Hubs;
 
@@ -21,6 +22,11 @@ public interface IGatewayHubClient
     /// Receives refreshed authentication context when gateway rotates access tokens.
     /// </summary>
     Task ReceiveAuthContext(GatewayAuthContext authContext);
+
+    /// <summary>
+    /// Receives a completed cron run event pushed from the gateway.
+    /// </summary>
+    Task ReceiveCronResult(CronRunEvent cronRunEvent);
 }
 
 /// <summary>

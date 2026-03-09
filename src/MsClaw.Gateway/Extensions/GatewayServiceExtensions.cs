@@ -7,6 +7,7 @@ using MsClaw.Gateway.Auth;
 using MsClaw.Gateway.Hosting;
 using MsClaw.Gateway.Hubs;
 using MsClaw.Gateway.Services;
+using MsClaw.Gateway.Services.Cron;
 using MsClaw.Gateway.Services.Tools;
 using MsClaw.OpenResponses;
 using MsClaw.Tunnel;
@@ -89,12 +90,23 @@ public static class GatewayServiceExtensions
         services.AddSingleton<IGatewayHostedService>(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddSingleton<IToolExpander, ToolExpander>();
         services.AddSingleton<IToolProvider, EchoToolProvider>();
+        services.AddSingleton<CronJobStore>();
+        services.AddSingleton<ICronJobStore>(serviceProvider => serviceProvider.GetRequiredService<CronJobStore>());
+        services.AddSingleton<ICronRunHistoryStore>(serviceProvider => serviceProvider.GetRequiredService<CronJobStore>());
+        services.AddSingleton<ICronErrorClassifier, DefaultCronErrorClassifier>();
+        services.AddSingleton<ICronOutputSink, SignalRCronOutputSink>();
+        services.AddSingleton<ICronJobExecutor, PromptJobExecutor>();
+        services.AddSingleton<ICronJobExecutor, CommandJobExecutor>();
+        services.AddSingleton<CronEngine>();
+        services.AddSingleton<ICronEngine>(serviceProvider => serviceProvider.GetRequiredService<CronEngine>());
+        services.AddSingleton<IToolProvider, CronToolProvider>();
         services.AddSingleton<AgentMessageService>();
         services.AddSingleton<IOpenResponseService, GatewayOpenResponseService>();
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<ToolBridgeHostedService>());
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayHostedService>());
         services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<GatewayTunnelHostedService>());
         services.AddHostedService<TokenRefreshService>();
+        services.AddHostedService(serviceProvider => serviceProvider.GetRequiredService<CronEngine>());
 
         return services;
     }

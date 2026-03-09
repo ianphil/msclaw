@@ -43,3 +43,5 @@
 - testing: Host process tests for `CommandPayload` should use OS-specific commands (`powershell` on Windows, `/bin/sh` on Unix) so timeout and stdout coverage stay portable.
 - testing: `TimeProvider` plus `new PeriodicTimer(interval, timeProvider)` makes hosted timer loops deterministic without sleeping real time in unit tests.
 - cron: Keep active job IDs and tracked execution tasks separate — `HashSet<string>` answers “is this job running?” while a task list lets shutdown await in-flight work cleanly.
+- di: Hosted services that also expose runtime interfaces should be registered as a concrete singleton first, then projected to both the interface and `AddHostedService`, so DI and background hosting share one instance.
+- testing: Extending `IGatewayHubClient` with a new strongly typed callback requires updating every test double that implements the hub client contract, not just the production hub sink.
