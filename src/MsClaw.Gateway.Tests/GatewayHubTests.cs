@@ -176,6 +176,13 @@ public class GatewayHubTests
         {
             ReleaseCallerKeys.Add(callerKey);
         }
+
+        public bool TryRelease(string callerKey)
+        {
+            ReleaseCallerKeys.Add(callerKey);
+
+            return true;
+        }
     }
 
     private sealed class StubGatewayClient : IGatewayClient

@@ -25,6 +25,7 @@ public sealed class SessionPool : ISessionPool
 
     /// <summary>
     /// Returns the pooled session for the caller, invoking the factory when no session is tracked.
+    /// Callers MUST ensure at most one concurrent call per callerKey (enforced by <see cref="IConcurrencyGate"/>).
     /// </summary>
     public async Task<IGatewaySession> GetOrCreateAsync(
         string callerKey,
@@ -60,6 +61,19 @@ public sealed class SessionPool : ISessionPool
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Replaces the pooled session for the caller with a new session without disposing the old one.
+    /// </summary>
+    public Task ReplaceAsync(string callerKey, IGatewaySession newSession)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(callerKey);
+        ArgumentNullException.ThrowIfNull(newSession);
+
+        sessions[callerKey] = new TrackedSession(newSession);
+
+        return Task.CompletedTask;
     }
 
     /// <summary>

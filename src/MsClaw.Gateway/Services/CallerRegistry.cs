@@ -38,4 +38,26 @@ public sealed class CallerRegistry : IConcurrencyGate
 
         gate.Release();
     }
+
+    /// <summary>
+    /// Releases the caller's gate if it is currently held. Safe to call when the gate may have already been released.
+    /// </summary>
+    public bool TryRelease(string callerKey)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(callerKey);
+        if (gates.TryGetValue(callerKey, out var gate) is false)
+        {
+            return false;
+        }
+
+        try
+        {
+            gate.Release();
+            return true;
+        }
+        catch (SemaphoreFullException)
+        {
+            return false;
+        }
+    }
 }

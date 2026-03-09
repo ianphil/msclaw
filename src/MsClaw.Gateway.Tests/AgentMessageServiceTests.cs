@@ -1,5 +1,8 @@
 using GitHub.Copilot.SDK;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using MsClaw.Gateway.Hosting;
+using MsClaw.Gateway.Services.Tools;
 using MsClaw.Gateway.Services;
 using Xunit;
 
@@ -130,6 +133,68 @@ public class AgentMessageServiceTests
         Assert.Equal("hello", session.LastPrompt);
     }
 
+    [Fact]
+    public async Task SendAsync_UnknownCaller_PopulatesSessionConfigToolsWithDefaultsAndExpandTools()
+    {
+        var defaultTool = CreateFunction("default_tool", "Default tool");
+        var expandTool = CreateFunction("expand_tools", "Expand tools");
+        var session = new StubGatewaySession("session-created");
+        session.SendAsyncHandler = static stubSession =>
+        {
+            stubSession.Emit(new SessionIdleEvent
+            {
+                Data = new SessionIdleData()
+            });
+
+            return Task.CompletedTask;
+        };
+
+        await using var client = new StubGatewayClient
+        {
+            CreateSessionResult = session
+        };
+        await using var provider = CreateServiceProvider(client, new StubToolCatalog(defaultTool), new StubToolExpander(expandTool));
+        var sut = provider.GetRequiredService<AgentMessageService>();
+
+        _ = await ReadAllAsync(sut.SendAsync("caller-1", "hello", CancellationToken.None));
+
+        var sessionConfig = Assert.IsType<SessionConfig>(client.LastCreateSessionConfig);
+        Assert.NotNull(sessionConfig.Tools);
+        Assert.Equal(["default_tool", "expand_tools"], sessionConfig.Tools.Select(static tool => tool.Name));
+    }
+
+    [Fact]
+    public async Task SendAsync_UnknownCaller_LeavesCliToolWhitelistsUnsetWhenConfiguringCustomTools()
+    {
+        var defaultTool = CreateFunction("default_tool", "Default tool");
+        var expandTool = CreateFunction("expand_tools", "Expand tools");
+        var session = new StubGatewaySession("session-created");
+        session.SendAsyncHandler = static stubSession =>
+        {
+            stubSession.Emit(new SessionIdleEvent
+            {
+                Data = new SessionIdleData()
+            });
+
+            return Task.CompletedTask;
+        };
+
+        await using var client = new StubGatewayClient
+        {
+            CreateSessionResult = session
+        };
+        await using var provider = CreateServiceProvider(client, new StubToolCatalog(defaultTool), new StubToolExpander(expandTool));
+        var sut = provider.GetRequiredService<AgentMessageService>();
+
+        _ = await ReadAllAsync(sut.SendAsync("caller-1", "hello", CancellationToken.None));
+
+        var sessionConfig = Assert.IsType<SessionConfig>(client.LastCreateSessionConfig);
+        Assert.Null(sessionConfig.AvailableTools);
+        Assert.Null(sessionConfig.ExcludedTools);
+        Assert.NotNull(sessionConfig.Tools);
+        Assert.Contains(sessionConfig.Tools, static tool => tool.Name == "expand_tools");
+    }
+
     private static async Task<List<SessionEvent>> ReadAllAsync(IAsyncEnumerable<SessionEvent> events)
     {
         var results = new List<SessionEvent>();
@@ -139,6 +204,29 @@ public class AgentMessageServiceTests
         }
 
         return results;
+    }
+
+    private static ServiceProvider CreateServiceProvider(IGatewayClient client, IToolCatalog toolCatalog, IToolExpander toolExpander)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton<IConcurrencyGate, StubConcurrencyGate>();
+        services.AddSingleton<ISessionPool, SessionPool>();
+        services.AddSingleton(client);
+        services.AddSingleton<IGatewayClient>(client);
+        services.AddSingleton<IGatewayHostedService>(new StubGatewayHostedService { SystemMessage = "system message" });
+        services.AddSingleton(toolCatalog);
+        services.AddSingleton(toolExpander);
+        services.AddSingleton<AgentMessageService>();
+
+        return services.BuildServiceProvider();
+    }
+
+    private static AIFunction CreateFunction(string name, string description)
+    {
+        return AIFunctionFactory.Create(
+            (string input) => input,
+            name,
+            description);
     }
 
     private sealed class StubConcurrencyGate : IConcurrencyGate
@@ -159,6 +247,13 @@ public class AgentMessageServiceTests
         public void Release(string callerKey)
         {
             ReleaseCallerKeys.Add(callerKey);
+        }
+
+        public bool TryRelease(string callerKey)
+        {
+            ReleaseCallerKeys.Add(callerKey);
+
+            return true;
         }
     }
 
@@ -294,6 +389,47 @@ public class AgentMessageServiceTests
         public Task StopAsync(CancellationToken cancellationToken)
         {
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubToolCatalog(params AIFunction[] defaultTools) : IToolCatalog
+    {
+        public IReadOnlyList<AIFunction> GetDefaultTools()
+        {
+            return defaultTools;
+        }
+
+        public IReadOnlyList<AIFunction> GetToolsByName(IEnumerable<string> names)
+        {
+            return [];
+        }
+
+        public IReadOnlyList<string> GetCatalogToolNames()
+        {
+            return [];
+        }
+
+        public IReadOnlyList<string> GetToolNamesByProvider(string providerName)
+        {
+            return [];
+        }
+
+        public IReadOnlyList<string> SearchTools(string query)
+        {
+            return [];
+        }
+
+        public ToolDescriptor? GetDescriptor(string toolName)
+        {
+            return null;
+        }
+    }
+
+    private sealed class StubToolExpander(AIFunction expandToolsFunction) : IToolExpander
+    {
+        public AIFunction CreateExpandToolsFunction(SessionHolder sessionHolder, IList<AIFunction> currentSessionTools)
+        {
+            return expandToolsFunction;
         }
     }
 }

@@ -76,7 +76,7 @@ public static class StartCommand
         IUserConfigLoader? userConfigLoader = null,
         CancellationToken cancellationToken = default)
     {
-        var resolvedMindPath = newMindPath ?? mindPath;
+        var resolvedMindPath = ExpandHome(newMindPath ?? mindPath);
         if (string.IsNullOrWhiteSpace(resolvedMindPath))
         {
             throw new ArgumentException("Either --mind or --new-mind must be specified.");
@@ -157,6 +157,18 @@ public static class StartCommand
         }
 
         return userConfigLoader.Load().TunnelId;
+    }
+
+    /// <summary>Expands a leading ~ to the user's home directory.</summary>
+    private static string? ExpandHome(string? path)
+    {
+        if (path is null || !path.StartsWith('~'))
+        {
+            return path;
+        }
+
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(home, path[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
     }
 
     private static void EnsureTunnelLogin(bool tunnelRequested, IUserConfigLoader? userConfigLoader)
