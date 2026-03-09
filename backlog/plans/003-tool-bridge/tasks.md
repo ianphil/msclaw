@@ -37,20 +37,20 @@ Phase 1 (Abstractions) ──► Phase 2 (Store + Bridge + Registrar) ──► 
 Define interfaces, value types, and enums. No behavior — just contracts.
 
 ### Value Types
-- [ ] T001 [TEST] Write test that `ToolDescriptor` is a sealed record with required `Function`, `ProviderName`, `Tier` properties and optional `AlwaysVisible` defaulting to false
-- [ ] T002 [IMPL] Implement `ToolDescriptor` record, `ToolSourceTier` enum, `ToolStatus` enum in `Services/Tools/ToolDescriptor.cs`
+- [x] T001 [TEST] Write test that `ToolDescriptor` is a sealed record with required `Function`, `ProviderName`, `Tier` properties and optional `AlwaysVisible` defaulting to false
+- [x] T002 [IMPL] Implement `ToolDescriptor` record, `ToolSourceTier` enum, `ToolStatus` enum in `Services/Tools/ToolDescriptor.cs`
 
 ### Provider Interface
-- [ ] T003 [IMPL] Define `IToolProvider` interface in `Services/Tools/IToolProvider.cs`
+- [x] T003 [IMPL] Define `IToolProvider` interface in `Services/Tools/IToolProvider.cs`
 
 ### Catalog Interface
-- [ ] T004 [IMPL] Define `IToolCatalog` interface in `Services/Tools/IToolCatalog.cs`
+- [x] T004 [IMPL] Define `IToolCatalog` interface in `Services/Tools/IToolCatalog.cs`
 
 ### Registrar Interface
-- [ ] T005 [IMPL] Define `IToolRegistrar` interface in `Services/Tools/IToolRegistrar.cs`
+- [x] T005 [IMPL] Define `IToolRegistrar` interface in `Services/Tools/IToolRegistrar.cs`
 
 ### Expander Interface
-- [ ] T006 [IMPL] Define `IToolExpander` interface and `SessionHolder` class (with `TaskCompletionSource<IGatewaySession>`) in `Services/Tools/IToolExpander.cs`
+- [x] T006 [IMPL] Define `IToolExpander` interface and `SessionHolder` class (with `TaskCompletionSource<IGatewaySession>`) in `Services/Tools/IToolExpander.cs`
 
 ## Phase 2: ToolCatalogStore, ToolBridge (Read), and ToolRegistrar (Write)
 

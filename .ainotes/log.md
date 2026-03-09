@@ -1,6 +1,7 @@
 # AI Notes — Log
 
 ## 2026-03-09
+- testing: Reflection-based shape tests work well for contract-only C# records when SDK types like AIFunction are awkward to instantiate directly.
 - planning: Tool Bridge feature (003) uses CQRS-style interface split — IToolCatalog (read) and IToolRegistrar (write) backed by a single ToolBridge singleton. This avoids synchronization issues while enforcing access separation at the consumer level.
 - sdk: ResumeSessionAsync accepts Tools in ResumeSessionConfig, enabling lazy tool addition to existing sessions. expand_tools uses this for incremental session growth.
 - sdk: Setting AvailableTools on SessionConfig creates a whitelist across ALL tools including CLI built-ins — never use it. Register only the tools you want; CLI built-ins stay visible by default.
