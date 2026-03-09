@@ -94,7 +94,7 @@ Send:
 
 2. Wait ~12 seconds (2-second timer tick + execution time).
 
-**Expected:** The gateway console shows the cron engine dispatching the job. The SignalR hub receives a `ReceiveCronResult` event with the assistant's response. The job status changes to `disabled` (finalized).
+**Expected:** The gateway console shows the cron engine dispatching the job. In the browser UI, the **activity sidebar** shows a purple-striped entry like `⏰ Cron "quick-test" — Success (1234ms)` — click it to expand the full JSON payload. The job status changes to `disabled` (finalized).
 
 ## Test 9 — Command Payload
 
@@ -134,7 +134,7 @@ Send:
 
 ---
 
-## Verifying Engine Behavior (Console)
+## Verifying Engine Behavior (Console + UI)
 
 Check the gateway console for log lines at startup:
 
@@ -148,6 +148,8 @@ When a job fires:
 Dispatching cron job 'quick-test' (run: <guid>)
 Cron job 'quick-test' completed: Success (duration: 1234ms)
 ```
+
+In the browser UI, cron results appear as **purple-striped entries** in the activity sidebar (open it with the terminal icon button in the toolbar). Each entry shows the job name, outcome, and duration. Click an entry to expand the full `CronRunEvent` JSON payload.
 
 **Expected:** No exceptions in the log during normal operation.
 

@@ -147,6 +147,15 @@
             appendActivity(`Token refreshed. Expires at ${authContext.expiresAtUtc ?? "unknown"}.`, "success");
         });
 
+        connection.on("ReceiveCronResult", (cronRunEvent) => {
+            if (!cronRunEvent) return;
+            const name = cronRunEvent.jobName ?? cronRunEvent.jobId ?? "unknown";
+            const outcome = cronRunEvent.outcome ?? "unknown";
+            const duration = cronRunEvent.durationMs != null ? ` (${cronRunEvent.durationMs}ms)` : "";
+            const label = `⏰ Cron "${name}" — ${outcome}${duration}`;
+            appendActivity(label, "cron", cronRunEvent);
+        });
+
         // ─── Send message ───
 
         promptForm.addEventListener("submit", async (event) => {

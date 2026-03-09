@@ -11,6 +11,7 @@
     --success: #3fb950;
     --warning: #d29922;
     --error: #f85149;
+    --cron: #d2a8ff;
     --mono: "Cascadia Code", "Fira Code", "SF Mono", monospace;
 }
 
@@ -457,6 +458,10 @@ textarea {
 
 .activity-error {
     border-left-color: var(--error);
+}
+
+.activity-cron {
+    border-left-color: var(--cron);
 }
 
 .activity-header {

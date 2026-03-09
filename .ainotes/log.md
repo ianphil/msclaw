@@ -49,3 +49,5 @@
 - refactoring: Pure state-transition functions (success/failure/backoff) belong in static helpers, not orchestrator classes — keeps the engine focused on dispatch and the transitions independently testable.
 - testing: Reflection-based property type/attribute tests add maintenance burden without catching bugs the compiler already enforces — prefer behavioral assertions on defaults and JSON round-trips.
 - resilience: File.Delete in finally blocks can throw IOException (e.g., antivirus lock on Windows), masking the real exception. Always guard cleanup I/O with try/catch.
+- ui: IGatewayHubClient server→client callbacks need matching `connection.on()` handlers in index.html — new hub methods are invisible to the browser until a JS handler is registered.
+- ui: Activity log tones (info/success/warning/error/cron) map to CSS border-left colors via `.activity-{tone}` classes. New event channels just need a CSS class and a `connection.on()` handler.

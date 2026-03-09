@@ -49,6 +49,7 @@ msclaw (binary)
 
 - **[Setup Guide](setup.md)** — Prerequisites, installation, building from source
 - **[Gateway Quickstart](gateway-quickstart.md)** — Manual testing walkthrough: scaffold → start → health checks → chat → API → SignalR
+- **[Cron System](cron-system.md)** — Scheduled agent autonomy: reminders, recurring jobs, command tasks
 - **[Tools Developer Guide](tools-dev-guide.md)** — Build custom tool providers to extend agent capabilities
 - **[Bootstrap Flow (Existing Mind)](bootstrap-mind-flow.md)** — What happens when you load a mind with `--mind`
 - **[Bootstrap Flow (New Mind)](bootstrap-new-mind-flow.md)** — What happens when you scaffold with `--new-mind` (GENESIS flow)
