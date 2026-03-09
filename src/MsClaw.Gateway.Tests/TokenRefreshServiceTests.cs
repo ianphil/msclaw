@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Identity.Client;
 using MsClaw.Core;
 using MsClaw.Gateway.Hubs;
+using MsClaw.Gateway.Services.Cron;
 using MsClaw.Gateway.Services;
 using Xunit;
 
@@ -150,6 +151,11 @@ public sealed class TokenRefreshServiceTests
         public Task ReceiveAuthContext(GatewayAuthContext authContext)
         {
             AuthUpdates.Add(authContext);
+            return Task.CompletedTask;
+        }
+
+        public Task ReceiveCronResult(CronRunEvent cronRunEvent)
+        {
             return Task.CompletedTask;
         }
     }

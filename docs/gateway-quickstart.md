@@ -266,6 +266,7 @@ A successful response returns a JSON payload with a `connectionToken` and availa
 | `AbortResponse()` | Client → Server | Cancels the active run for the caller |
 | `ReceiveEvent(event)` | Server → Client | Pushes a session event during an active run |
 | `ReceivePresence(snapshot)` | Server → Client | Pushes connection count updates |
+| `ReceiveCronResult(event)` | Server → Client | Pushes cron job execution results (see [Cron System](cron-system.md)) |
 
 ### Concurrency
 

@@ -8,6 +8,17 @@
 - design: expand_tools needs the session reference but the session needs expand_tools in its config — solved with deferred binding via SessionHolder wrapper and mutable tool list captured in closure.
 - design: Same-tier tool name collision is a hard error (InvalidOperationException), intentionally stricter than spec (which says log and skip). Makes DI registration order irrelevant.
 - reference: Copilot SDK source available at C:\src\copilot-sdk for verifying API contracts during implementation.
+- architecture: CronJobStatus should only persist Enabled/Disabled — Running is a transient runtime state tracked in-memory via HashSet. Persisting Running causes a crash recovery bug where jobs get stuck forever after unclean shutdown.
+- design: Fat interfaces (ISP violation) catch: ICronJobStore originally had 8 methods spanning job CRUD + run history. Split into ICronJobStore (6 methods) + ICronRunHistoryStore (2 methods) so consumers depend only on what they use.
+- design: Engine hosted services should not inject IHubContext directly — use an ICronOutputSink abstraction to decouple high-level policy from infrastructure. Same pattern applies to any hosted service that publishes to external consumers.
+- design: Pure computation (schedule calculation, stagger offsets) should be extracted from orchestrator classes into static helpers for SRP and trivial testability.
+- design: In-memory canonical state with flush-on-mutate eliminates the load-modify-save race condition between concurrent CRUD operations and timer ticks reading from the same file.
+- tooling: Spec test runner (Invoke-SpecTests.ps1) is under active refactoring — spec test definitions should be created for acceptance criteria but not referenced as executable gates in task lists.
+- architecture: Cron system uses four-layer design: CronToolProvider (IToolProvider) → CronEngine (IHostedService) → CronJobStore (persistence) → ICronJobExecutor (dispatch by payload type). Engine never knows about payload specifics.
+- serialization: [JsonPolymorphic] + [JsonDerivedType] on abstract records is the right pattern for discriminated unions in System.Text.Json — produces clean `"type": "prompt"` discriminator fields.
+- signalr: Each distinct server→client push type gets its own method on IGatewayHubClient (ReceiveEvent, ReceivePresence, ReceiveAuthContext, ReceiveCronResult). Route by method name, not by payload inspection.
+- deps: Cronos 0.11.1 verified compatible with net10.0 — targets .NET 6.0+ and .NET Standard 1.0.
+- planning: Quick plans (backlog/plans/YYYYMMDD-slug.md) are superseded and deleted when expanded into full feature plans (backlog/plans/NNN-slug/).
 - bug: Windows Path.GetFullPath("~/path") treats ~ as a literal directory name, not home. CLI args need explicit ExpandHome before GetFullPath.
 - bug: SignalR abort race condition — AbortResponse cancelled the CTS but the SendAsync generator's finally block (gate release) ran asynchronously. Next message arrived before gate was freed. Fix: idempotent TryRelease + abort force-releases the gate.
 - ui: SignalR JS client subscription.dispose() stops delivering events to callbacks but the server stream continues until CancelInvocation arrives. Dispose subscription BEFORE awaiting server-side AbortResponse for instant UI feedback.
@@ -26,3 +37,17 @@
 - pattern: Deferred tool sync — expand_tools adds tools to in-memory list and returns immediately. Before next SendAsync, SyncToolsIfNeededAsync detects count drift and calls ResumeSessionAsync. Tools callable on next message, not current turn.
 - cron: Discriminated JobPayload design (PromptPayload vs CommandPayload) with pluggable ICronJobExecutor — new job types require zero engine changes, just a new executor + payload variant.
 - cron: CommandPayload enables deterministic work (shell commands) without LLM sessions or token cost. PromptPayload creates isolated sessions via SessionPool with full tool surface.
+- testing: Record equality on array-typed payloads is reference-based, so JSON round-trip tests should compare array contents instead of whole-record equality.
+- cron: Phase 2 persistence uses in-memory canonical state plus atomic write-temp-then-rename for `jobs.json`, while run history is split behind `ICronRunHistoryStore` into per-job files with pruning.
+- cron: Prompt-based background runs fit the existing gateway session pattern — subscribe with `session.On`, treat `SessionIdleEvent` as completion, and tear down the pooled `cron:{jobId}:{runId}` session in `finally`.
+- testing: Host process tests for `CommandPayload` should use OS-specific commands (`powershell` on Windows, `/bin/sh` on Unix) so timeout and stdout coverage stay portable.
+- testing: `TimeProvider` plus `new PeriodicTimer(interval, timeProvider)` makes hosted timer loops deterministic without sleeping real time in unit tests.
+- cron: Keep active job IDs and tracked execution tasks separate — `HashSet<string>` answers “is this job running?” while a task list lets shutdown await in-flight work cleanly.
+- di: Hosted services that also expose runtime interfaces should be registered as a concrete singleton first, then projected to both the interface and `AddHostedService`, so DI and background hosting share one instance.
+- testing: Extending `IGatewayHubClient` with a new strongly typed callback requires updating every test double that implements the hub client contract, not just the production hub sink.
+- concurrency: ConcurrentDictionary.ContainsKey+indexer is a TOCTOU race — use AddOrUpdate with a throwing addFactory for atomic check-and-modify when updating entries that must already exist.
+- refactoring: Pure state-transition functions (success/failure/backoff) belong in static helpers, not orchestrator classes — keeps the engine focused on dispatch and the transitions independently testable.
+- testing: Reflection-based property type/attribute tests add maintenance burden without catching bugs the compiler already enforces — prefer behavioral assertions on defaults and JSON round-trips.
+- resilience: File.Delete in finally blocks can throw IOException (e.g., antivirus lock on Windows), masking the real exception. Always guard cleanup I/O with try/catch.
+- ui: IGatewayHubClient server→client callbacks need matching `connection.on()` handlers in index.html — new hub methods are invisible to the browser until a JS handler is registered.
+- ui: Activity log tones (info/success/warning/error/cron) map to CSS border-left colors via `.activity-{tone}` classes. New event channels just need a CSS class and a `connection.on()` handler.
