@@ -12,7 +12,7 @@ public class ToolExpanderTests
     [Fact]
     public void CreateExpandToolsFunction_ReturnsFunctionNamedExpandTools()
     {
-        var sut = new ToolExpander(new StubToolCatalog(), new StubGatewayClient());
+        var sut = new ToolExpander(new StubToolCatalog());
 
         var function = sut.CreateExpandToolsFunction(new SessionHolder(), []);
 
@@ -30,10 +30,9 @@ public class ToolExpanderTests
             ProviderName = "provider-a",
             Tier = ToolSourceTier.Bundled
         });
-        var gatewayClient = new StubGatewayClient();
         var sessionHolder = new SessionHolder();
         var currentTools = new List<AIFunction> { CreateFunction("base_tool", "Base Tool") };
-        var sut = new ToolExpander(catalog, gatewayClient);
+        var sut = new ToolExpander(catalog);
         var function = sut.CreateExpandToolsFunction(sessionHolder, currentTools);
         sessionHolder.Bind(new StubGatewaySession("session-1"));
 
@@ -65,10 +64,9 @@ public class ToolExpanderTests
             ProviderName = "provider-a",
             Tier = ToolSourceTier.Bundled
         });
-        var gatewayClient = new StubGatewayClient();
         var sessionHolder = new SessionHolder();
         var currentTools = new List<AIFunction>();
-        var sut = new ToolExpander(catalog, gatewayClient);
+        var sut = new ToolExpander(catalog);
         var function = sut.CreateExpandToolsFunction(sessionHolder, currentTools);
         sessionHolder.Bind(new StubGatewaySession("session-2"));
 
@@ -76,7 +74,6 @@ public class ToolExpanderTests
             new AIFunctionArguments(new Dictionary<string, object?> { ["names"] = new[] { "provider-a" } }),
             CancellationToken.None);
 
-        Assert.Equal(0, gatewayClient.ResumeSessionCallCount);
         Assert.Equal(["tool_a", "tool_b"], currentTools.Select(static tool => tool.Name));
 
         var json = Assert.IsType<JsonElement>(result);
@@ -90,16 +87,14 @@ public class ToolExpanderTests
         {
             SearchResults = ["teams_post_message", "teams_pin_message"]
         };
-        var gatewayClient = new StubGatewayClient();
         var currentTools = new List<AIFunction> { CreateFunction("base_tool", "Base Tool") };
-        var sut = new ToolExpander(catalog, gatewayClient);
+        var sut = new ToolExpander(catalog);
         var function = sut.CreateExpandToolsFunction(new SessionHolder(), currentTools);
 
         var result = await function.InvokeAsync(
             new AIFunctionArguments(new Dictionary<string, object?> { ["query"] = "post message" }),
             CancellationToken.None);
 
-        Assert.Equal(0, gatewayClient.ResumeSessionCallCount);
         Assert.Equal(["base_tool"], currentTools.Select(static tool => tool.Name));
 
         var json = Assert.IsType<JsonElement>(result);
@@ -117,9 +112,8 @@ public class ToolExpanderTests
             ProviderName = "provider-a",
             Tier = ToolSourceTier.Bundled
         });
-        var gatewayClient = new StubGatewayClient();
         var currentTools = new List<AIFunction>();
-        var sut = new ToolExpander(catalog, gatewayClient, TimeSpan.FromMilliseconds(25));
+        var sut = new ToolExpander(catalog);
         var function = sut.CreateExpandToolsFunction(new SessionHolder(), currentTools);
 
         var result = await function.InvokeAsync(
@@ -135,17 +129,14 @@ public class ToolExpanderTests
     [Fact]
     public async Task CreateExpandToolsFunction_UnknownToolName_ReturnsSkippedWithoutThrowing()
     {
-        var gatewayClient = new StubGatewayClient();
         var sessionHolder = new SessionHolder();
-        var sut = new ToolExpander(new StubToolCatalog(), gatewayClient);
+        var sut = new ToolExpander(new StubToolCatalog());
         var function = sut.CreateExpandToolsFunction(sessionHolder, []);
         sessionHolder.Bind(new StubGatewaySession("session-3"));
 
         var result = await function.InvokeAsync(
             new AIFunctionArguments(new Dictionary<string, object?> { ["names"] = new[] { "missing_tool" } }),
             CancellationToken.None);
-
-        Assert.Equal(0, gatewayClient.ResumeSessionCallCount);
 
         var json = Assert.IsType<JsonElement>(result);
         Assert.Equal(0, GetProperty(json, "Count").GetInt32());
@@ -225,49 +216,6 @@ public class ToolExpanderTests
         public ToolDescriptor? GetDescriptor(string toolName)
         {
             return descriptors.TryGetValue(toolName, out var descriptor) ? descriptor : null;
-        }
-    }
-
-    private sealed class StubGatewayClient : IGatewayClient
-    {
-        public int ResumeSessionCallCount { get; private set; }
-
-        public string? LastResumedSessionId { get; private set; }
-
-        public ResumeSessionConfig? LastResumeSessionConfig { get; private set; }
-
-        public Task StartAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public Task<IGatewaySession> CreateSessionAsync(SessionConfig? config = null, CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<IGatewaySession>(new StubGatewaySession("created"));
-        }
-
-        public Task<IGatewaySession> ResumeSessionAsync(string sessionId, ResumeSessionConfig? config = null, CancellationToken cancellationToken = default)
-        {
-            ResumeSessionCallCount++;
-            LastResumedSessionId = sessionId;
-            LastResumeSessionConfig = config;
-
-            return Task.FromResult<IGatewaySession>(new StubGatewaySession(sessionId));
-        }
-
-        public Task<IReadOnlyList<SessionMetadata>> ListSessionsAsync(CancellationToken cancellationToken = default)
-        {
-            return Task.FromResult<IReadOnlyList<SessionMetadata>>([]);
-        }
-
-        public Task DeleteSessionAsync(string sessionId, CancellationToken cancellationToken = default)
-        {
-            return Task.CompletedTask;
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            return ValueTask.CompletedTask;
         }
     }
 

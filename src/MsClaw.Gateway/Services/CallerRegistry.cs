@@ -50,13 +50,14 @@ public sealed class CallerRegistry : IConcurrencyGate
             return false;
         }
 
-        if (gate.CurrentCount > 0)
+        try
+        {
+            gate.Release();
+            return true;
+        }
+        catch (SemaphoreFullException)
         {
             return false;
         }
-
-        gate.Release();
-
-        return true;
     }
 }

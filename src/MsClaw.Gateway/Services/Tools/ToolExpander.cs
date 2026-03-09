@@ -1,5 +1,4 @@
 using Microsoft.Extensions.AI;
-using MsClaw.Gateway.Hosting;
 
 namespace MsClaw.Gateway.Services.Tools;
 
@@ -11,20 +10,12 @@ public sealed class ToolExpander : IToolExpander
     private readonly IToolCatalog toolCatalog;
 
     /// <summary>
-    /// Initializes the expander with the catalog and gateway client dependencies.
+    /// Initializes the expander with the tool catalog for discovery and lookup.
     /// </summary>
-    public ToolExpander(IToolCatalog toolCatalog, IGatewayClient gatewayClient)
+    public ToolExpander(IToolCatalog toolCatalog)
     {
         ArgumentNullException.ThrowIfNull(toolCatalog);
         this.toolCatalog = toolCatalog;
-    }
-
-    /// <summary>
-    /// Initializes the expander with an explicit session-bind timeout (reserved for future deferred resume).
-    /// </summary>
-    internal ToolExpander(IToolCatalog toolCatalog, IGatewayClient gatewayClient, TimeSpan sessionBindTimeout)
-        : this(toolCatalog, gatewayClient)
-    {
     }
 
     /// <summary>
@@ -37,7 +28,7 @@ public sealed class ToolExpander : IToolExpander
 
         return AIFunctionFactory.Create(
             async (string[]? names = null, string? query = null, CancellationToken cancellationToken = default) =>
-                await ExpandToolsAsync(sessionHolder, currentSessionTools, names, query, cancellationToken),
+                await ExpandToolsAsync(currentSessionTools, names, query, cancellationToken),
             "expand_tools",
             "Searches the registered tool catalog or lazily enables additional tools on the current session.");
     }
@@ -46,7 +37,6 @@ public sealed class ToolExpander : IToolExpander
     /// Resolves query and load requests for expand_tools.
     /// </summary>
     private Task<object> ExpandToolsAsync(
-        SessionHolder sessionHolder,
         IList<AIFunction> currentSessionTools,
         string[]? names,
         string? query,

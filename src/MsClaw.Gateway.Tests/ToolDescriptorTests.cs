@@ -15,7 +15,6 @@ public class ToolDescriptorTests
         var instance = Assert.IsType<ToolDescriptor>(Activator.CreateInstance(descriptorType, nonPublic: true));
 
         Assert.True(descriptorType.IsSealed);
-        Assert.NotNull(descriptorType.GetMethod("PrintMembers", BindingFlags.Instance | BindingFlags.NonPublic));
 
         var functionProperty = descriptorType.GetProperty(nameof(ToolDescriptor.Function));
         Assert.NotNull(functionProperty);

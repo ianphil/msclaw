@@ -75,6 +75,7 @@ public sealed class ToolBridge : IToolCatalog, IToolRegistrar
 
     /// <summary>
     /// Re-discovers tools for an already registered provider and replaces its catalog entries.
+    /// New tools are indexed before stale ones are removed so concurrent readers never see an empty window.
     /// </summary>
     public async Task RefreshProviderAsync(string providerName, CancellationToken cancellationToken)
     {
@@ -85,13 +86,21 @@ public sealed class ToolBridge : IToolCatalog, IToolRegistrar
             throw new InvalidOperationException($"Provider '{providerName}' is not registered.");
         }
 
-        foreach (var descriptor in store.GetByProvider(providerName))
-        {
-            store.Remove(descriptor.Function.Name);
-        }
-
+        var staleTools = store.GetByProvider(providerName);
         var discoveredTools = await provider.DiscoverAsync(cancellationToken);
         IndexDiscoveredTools(provider, discoveredTools);
+
+        var newToolNames = discoveredTools
+            .Select(static descriptor => descriptor.Function.Name)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var descriptor in staleTools)
+        {
+            if (newToolNames.Contains(descriptor.Function.Name) is false)
+            {
+                store.Remove(descriptor.Function.Name);
+            }
+        }
     }
 
     /// <summary>

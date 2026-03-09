@@ -25,6 +25,7 @@ public sealed class SessionPool : ISessionPool
 
     /// <summary>
     /// Returns the pooled session for the caller, invoking the factory when no session is tracked.
+    /// Callers MUST ensure at most one concurrent call per callerKey (enforced by <see cref="IConcurrencyGate"/>).
     /// </summary>
     public async Task<IGatewaySession> GetOrCreateAsync(
         string callerKey,
