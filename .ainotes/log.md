@@ -41,3 +41,5 @@
 - cron: Phase 2 persistence uses in-memory canonical state plus atomic write-temp-then-rename for `jobs.json`, while run history is split behind `ICronRunHistoryStore` into per-job files with pruning.
 - cron: Prompt-based background runs fit the existing gateway session pattern — subscribe with `session.On`, treat `SessionIdleEvent` as completion, and tear down the pooled `cron:{jobId}:{runId}` session in `finally`.
 - testing: Host process tests for `CommandPayload` should use OS-specific commands (`powershell` on Windows, `/bin/sh` on Unix) so timeout and stdout coverage stay portable.
+- testing: `TimeProvider` plus `new PeriodicTimer(interval, timeProvider)` makes hosted timer loops deterministic without sleeping real time in unit tests.
+- cron: Keep active job IDs and tracked execution tasks separate — `HashSet<string>` answers “is this job running?” while a task list lets shutdown await in-flight work cleanly.

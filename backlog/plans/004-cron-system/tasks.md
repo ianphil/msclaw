@@ -119,30 +119,30 @@ Implement `ICronJobExecutor` abstraction, both executor implementations, error c
 Hosted service with `PeriodicTimer` that evaluates due jobs and dispatches to executors. Uses in-memory `_activeJobIds` for running state (not persisted).
 
 ### Engine Basics
-- [ ] T041 [TEST] Write test: `CronEngine` implements `IHostedService`. `StartAsync` calls `ICronJobStore.InitializeAsync` and sets `IsRunning = true`. `StopAsync` sets `IsRunning = false`.
-- [ ] T042 [IMPL] Define `ICronEngine` interface in `Services/Cron/ICronEngine.cs` (with `IsRunning`, `ActiveJobCount`, `IsJobActive`). Implement `CronEngine` class skeleton with `IHostedService`, `PeriodicTimer`, start/stop lifecycle, and `HashSet<string> _activeJobIds`
+- [x] T041 [TEST] Write test: `CronEngine` implements `IHostedService`. `StartAsync` calls `ICronJobStore.InitializeAsync` and sets `IsRunning = true`. `StopAsync` sets `IsRunning = false`.
+- [x] T042 [IMPL] Define `ICronEngine` interface in `Services/Cron/ICronEngine.cs` (with `IsRunning`, `ActiveJobCount`, `IsJobActive`). Implement `CronEngine` class skeleton with `IHostedService`, `PeriodicTimer`, start/stop lifecycle, and `HashSet<string> _activeJobIds`
 
 ### Job Evaluation
-- [ ] T043 [TEST] Write test: engine tick with one enabled job whose `nextRunAtUtc` is in the past → executor called with that job
-- [ ] T044 [TEST] Write test: engine tick with one disabled job → executor NOT called
-- [ ] T045 [TEST] Write test: engine tick with one job that is in `_activeJobIds` (in-memory active set) → executor NOT called (no concurrent dispatch)
-- [ ] T046 [IMPL] Implement `OnTickAsync` — get jobs from store (in-memory), filter enabled + not in `_activeJobIds` + due + not in backoff, dispatch to executor
+- [x] T043 [TEST] Write test: engine tick with one enabled job whose `nextRunAtUtc` is in the past → executor called with that job
+- [x] T044 [TEST] Write test: engine tick with one disabled job → executor NOT called
+- [x] T045 [TEST] Write test: engine tick with one job that is in `_activeJobIds` (in-memory active set) → executor NOT called (no concurrent dispatch)
+- [x] T046 [IMPL] Implement `OnTickAsync` — get jobs from store (in-memory), filter enabled + not in `_activeJobIds` + due + not in backoff, dispatch to executor
 
 ### Concurrency Control
-- [ ] T047 [TEST] Write test: engine with concurrency limit 1, two due jobs → only first job dispatched, second waits
-- [ ] T048 [IMPL] Implement concurrency tracking — `SemaphoreSlim` with configurable count, acquire before dispatch, release after completion
+- [x] T047 [TEST] Write test: engine with concurrency limit 1, two due jobs → only first job dispatched, second waits
+- [x] T048 [IMPL] Implement concurrency tracking — `SemaphoreSlim` with configurable count, acquire before dispatch, release after completion
 
 ### Job Lifecycle After Execution
-- [ ] T049 [TEST] Write test: recurring job succeeds → job removed from `_activeJobIds`, `lastRunAtUtc` updated, `nextRunAtUtc` recalculated via `CronScheduleCalculator`, `backoff` cleared, `ICronOutputSink.PublishResultAsync` called
-- [ ] T050 [TEST] Write test: recurring job fails → job removed from `_activeJobIds`, `backoff` set with exponential delay (30s, 1m, 5m, 15m, 60m), error classified via `ICronErrorClassifier`
-- [ ] T051 [TEST] Write test: one-shot job succeeds → `status` set to Disabled (finalized), job removed from `_activeJobIds`
-- [ ] T052 [TEST] Write test: one-shot job fails with transient error (per `ICronErrorClassifier`), retries remaining → `backoff` set, still Enabled
-- [ ] T053 [TEST] Write test: one-shot job fails with permanent error (per `ICronErrorClassifier`) → `status` set to Disabled immediately
-- [ ] T054 [IMPL] Implement post-execution lifecycle — remove from `_activeJobIds`, update status, compute next run via `CronScheduleCalculator`, apply/clear backoff using `ICronErrorClassifier`, record history via `ICronRunHistoryStore`, publish via `ICronOutputSink`, save store
+- [x] T049 [TEST] Write test: recurring job succeeds → job removed from `_activeJobIds`, `lastRunAtUtc` updated, `nextRunAtUtc` recalculated via `CronScheduleCalculator`, `backoff` cleared, `ICronOutputSink.PublishResultAsync` called
+- [x] T050 [TEST] Write test: recurring job fails → job removed from `_activeJobIds`, `backoff` set with exponential delay (30s, 1m, 5m, 15m, 60m), error classified via `ICronErrorClassifier`
+- [x] T051 [TEST] Write test: one-shot job succeeds → `status` set to Disabled (finalized), job removed from `_activeJobIds`
+- [x] T052 [TEST] Write test: one-shot job fails with transient error (per `ICronErrorClassifier`), retries remaining → `backoff` set, still Enabled
+- [x] T053 [TEST] Write test: one-shot job fails with permanent error (per `ICronErrorClassifier`) → `status` set to Disabled immediately
+- [x] T054 [IMPL] Implement post-execution lifecycle — remove from `_activeJobIds`, update status, compute next run via `CronScheduleCalculator`, apply/clear backoff using `ICronErrorClassifier`, record history via `ICronRunHistoryStore`, publish via `ICronOutputSink`, save store
 
 ### Overdue-on-Startup
-- [ ] T055 [TEST] Write test: job with `nextRunAtUtc` in the past (simulating downtime) → fires on first tick after startup
-- [ ] T056 [IMPL] Implement overdue detection in `OnTickAsync` — any enabled job where `nextRunAtUtc <= UtcNow` and not in `_activeJobIds` is due
+- [x] T055 [TEST] Write test: job with `nextRunAtUtc` in the past (simulating downtime) → fires on first tick after startup
+- [x] T056 [IMPL] Implement overdue detection in `OnTickAsync` — any enabled job where `nextRunAtUtc <= UtcNow` and not in `_activeJobIds` is due
 
 ## Phase 5: CronToolProvider
 
