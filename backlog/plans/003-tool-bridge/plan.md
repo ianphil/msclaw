@@ -2,7 +2,7 @@
 
 ## Summary
 
-Build a tool bridge that decouples tool lifecycle management from individual tool sources. The bridge is a singleton (`ToolBridge`) implementing both `IToolCatalog` (read) and `IToolRegistrar` (write), backed by a `ConcurrentDictionary`-based catalog. A separate `ToolExpander` creates per-session `expand_tools` AIFunction instances for lazy tool loading. Sessions start with only default tools + `expand_tools`; additional tools are added via `ResumeSessionAsync`. No `AvailableTools`/`ExcludedTools` are used.
+Build a tool bridge that decouples tool lifecycle management from individual tool sources. The bridge has three internal parts: a `ToolCatalogStore` (shared `ConcurrentDictionary` + lookup logic), a `ToolBridge` implementing `IToolCatalog` (read), and a `ToolRegistrar` implementing `IToolRegistrar` (write). Both `ToolBridge` and `ToolRegistrar` compose over the shared `ToolCatalogStore` — they share data, not responsibility. A separate `ToolExpander` creates per-session `expand_tools` AIFunction instances for lazy tool loading. Sessions start with only default tools + `expand_tools`; additional tools are added via `ResumeSessionAsync`. No `AvailableTools`/`ExcludedTools` are used. Provider surface-change watch loops are owned by `ToolBridgeHostedService`, not by the registrar — the hosted service drives mutations, the registrar executes them.
 
 ## Architecture
 
@@ -25,13 +25,13 @@ Build a tool bridge that decouples tool lifecycle management from individual too
 │  SearchTools()       │   │    └─ Query mode: search catalog │
 │  GetDescriptor()     │   └──────────────────────────────────┘
 └──────────┬───────────┘
-           │ (same singleton)
+           │ (shared ToolCatalogStore)
 ┌──────────┴───────────┐
-│ IToolRegistrar (write)│
-│  RegisterProvider()   │
-│  UnregisterProvider() │
-│  RefreshProvider()    │──── WaitForSurfaceChangeAsync loop
-└──────────┬───────────┘
+│ IToolRegistrar (write)│       ┌───────────────────────────┐
+│  RegisterProvider()   │       │ToolBridgeHostedService    │
+│  UnregisterProvider() │◄──────│  owns watch loops         │
+│  RefreshProvider()    │       │  WaitForSurfaceChangeAsync│
+└──────────┬───────────┘       └───────────────────────────┘
            │
     ┌──────┴──────┬──────────────┐
     ▼             ▼              ▼
@@ -47,9 +47,12 @@ Build a tool bridge that decouples tool lifecycle management from individual too
 
 | Component | Role | Integrates With |
 |-----------|------|-----------------|
-| `ToolBridge` | Aggregates providers, validates descriptors, enforces tier priority, tracks status, provides catalog lookups | `IToolProvider` implementations, `AgentMessageService`, `ToolExpander` |
+| `ToolCatalogStore` | Internal shared data structure — `ConcurrentDictionary` + status map + provider index. No public interface. | `ToolBridge`, `ToolRegistrar` |
+| `ToolBridge` | Read-side catalog — implements `IToolCatalog`. Lookups, search, default tools. | `ToolCatalogStore`, `AgentMessageService`, `ToolExpander` |
+| `ToolRegistrar` | Write-side registry — implements `IToolRegistrar`. Register, unregister, refresh providers. Validates descriptors, enforces tier priority. | `ToolCatalogStore`, `IToolProvider` implementations, `ToolBridgeHostedService` |
+| `ToolBridgeHostedService` | Process driver — registers providers at startup, owns per-provider `WaitForSurfaceChangeAsync` watch loops, calls `RefreshProviderAsync` on change. | `IToolRegistrar`, `IEnumerable<IToolProvider>` |
 | `ToolExpander` | Creates per-session `expand_tools` AIFunction with load/query modes | `IToolCatalog`, `IGatewayClient` (for `ResumeSessionAsync`) |
-| `IToolProvider` | Discovers tools, provides AIFunction handlers, signals surface changes | `ToolBridge` (via `IToolRegistrar`) |
+| `IToolProvider` | Discovers tools, provides AIFunction handlers, signals surface changes | `ToolRegistrar` (via `IToolRegistrar`) |
 | `ToolDescriptor` | Immutable value type wrapping AIFunction + metadata | Catalog indexing, collision resolution |
 
 ### Data Flow: Session Creation
@@ -122,10 +125,12 @@ src/MsClaw.Gateway/
 │   │   ├── IToolCatalog.cs           # NEW: Read-side catalog interface
 │   │   ├── IToolRegistrar.cs         # NEW: Write-side registry interface
 │   │   ├── IToolExpander.cs          # NEW: Session-aware expander interface
-│   │   ├── ToolBridge.cs             # NEW: Singleton implementation (catalog + registrar)
+│   │   ├── ToolCatalogStore.cs       # NEW: Internal shared data structure
+│   │   ├── ToolBridge.cs             # NEW: IToolCatalog implementation (read)
+│   │   ├── ToolRegistrar.cs          # NEW: IToolRegistrar implementation (write)
 │   │   ├── ToolExpander.cs           # NEW: Per-session expand_tools factory
 │   │   ├── ToolDescriptor.cs         # NEW: Immutable record + ToolSourceTier + ToolStatus
-│   │   └── ToolBridgeHostedService.cs # NEW: Provider registration at startup
+│   │   └── ToolBridgeHostedService.cs # NEW: Provider registration + watch loops at startup
 │   └── AgentMessageService.cs        # MODIFY: Populate SessionConfig.Tools
 ├── Extensions/
 │   └── GatewayServiceExtensions.cs   # MODIFY: Register tool bridge services
@@ -133,17 +138,28 @@ src/MsClaw.Gateway/
 src/MsClaw.Gateway.Tests/
 ├── Services/
 │   └── Tools/
-│       ├── ToolBridgeTests.cs        # NEW: Discovery, collision, priority, refresh, teardown
-│       └── ToolExpanderTests.cs      # NEW: Load mode, query mode, provider resolution
+│       ├── ToolCatalogStoreTests.cs  # NEW: Shared store tests
+│       ├── ToolBridgeTests.cs        # NEW: Catalog read-side tests
+│       ├── ToolRegistrarTests.cs     # NEW: Registration, collision, priority, refresh, teardown
+│       ├── ToolExpanderTests.cs      # NEW: Load mode, query mode, provider resolution
+│       └── ToolBridgeHostedServiceTests.cs # NEW: Watch loop, startup registration
 ```
 
 ## Critical: expand_tools Session Reference
 
 **Problem**: `expand_tools` needs a reference to the `CopilotSession` it modifies, but the session doesn't exist until after `CreateSessionAsync` — which requires `Tools` (including `expand_tools`) in its config.
 
-**Solution**: Use deferred session binding. `CreateExpandToolsFunction` accepts a session holder (wrapper that receives the session after creation) and a mutable `List<AIFunction>` for the tool list. The expand function captures both in its closure. After `CreateSessionAsync`, the session reference is set on the holder. When `expand_tools` is invoked by the agent, it reads the session from the holder, appends new tools to the list, and calls `ResumeSessionAsync`.
+**Solution**: Use deferred session binding via `TaskCompletionSource<IGatewaySession>`. `CreateExpandToolsFunction` accepts a `SessionHolder` and a mutable `List<AIFunction>` for the tool list. The expand function `await`s the session from the holder. After `CreateSessionAsync`, the session is bound via `SessionHolder.Bind()`. This eliminates race conditions — if `expand_tools` is invoked before binding, it awaits rather than reading null.
 
 ```csharp
+// SessionHolder — thread-safe deferred binding
+public sealed class SessionHolder
+{
+    private readonly TaskCompletionSource<IGatewaySession> _tcs = new();
+    public void Bind(IGatewaySession session) => _tcs.SetResult(session);
+    public Task<IGatewaySession> GetSessionAsync() => _tcs.Task;
+}
+
 // In AgentMessageService.GetOrCreateSessionAsync:
 var sessionHolder = new SessionHolder();
 var tools = new List<AIFunction>(catalog.GetDefaultTools());
@@ -157,7 +173,7 @@ var session = await client.CreateSessionAsync(new SessionConfig
     Tools = tools
 }, ct);
 
-sessionHolder.Session = session;  // Bind after creation
+sessionHolder.Bind(session);  // Bind after creation — awaiting callers unblock
 ```
 
 ## Implementation Phases
@@ -175,12 +191,12 @@ Details in `tasks.md`.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Single ToolBridge vs separate catalog/registrar | Single class, two interfaces | Simpler — catalog and registrar share the same `ConcurrentDictionary`. Two interfaces enforce read/write separation at the consumer level. |
+| Separate catalog/registrar classes over single ToolBridge | `ToolBridge` (read, `IToolCatalog`) + `ToolRegistrar` (write, `IToolRegistrar`) sharing a `ToolCatalogStore` | SRP — catalog lookups and provider registration change for different reasons. Shared store provides data cohesion without class coupling. When approval gates arrive, `ToolRegistrar` changes; `ToolBridge` doesn't. |
+| Watch loops in hosted service, not registrar | `ToolBridgeHostedService` owns `WaitForSurfaceChangeAsync` loops | SRP — registrar executes mutations, hosted service drives them. Unit testing the registrar doesn't require async background loops. |
 | Same-tier collision = hard error | `InvalidOperationException` | Stricter than spec (which says log and skip). Makes conflicts visible at startup rather than silently depending on DI order. Intentional deviation documented in research.md. |
 | No `AvailableTools`/`ExcludedTools` | Lazy registration via `expand_tools` | Setting `AvailableTools` creates a whitelist that hides CLI built-in tools. Fragile and breaks when CLI adds new built-ins. |
 | `expand_tools` as single AIFunction with two modes | Load + query in one tool | Supersedes the MCPorter plan's two-tool design. Same capability, one tool surface, simpler for the agent. |
-| `WaitForSurfaceChangeAsync` (async pull) over events | Registrar controls processing | Serializes catalog mutations. No race conditions from concurrent event callbacks. |
-| Deferred session binding | `SessionHolder` wrapper | Solves circular dependency: expand_tools needs session, session needs expand_tools. |
+| Deferred session binding via `TaskCompletionSource` | `SessionHolder` wraps `TaskCompletionSource<IGatewaySession>` | Thread-safe: expand_tools `await`s session instead of reading a nullable field. No race conditions. If session never binds, callers await forever (detectable) rather than NPE (silent). |
 | Status tracked separately from descriptor | `ConcurrentDictionary<string, ToolStatus>` | Descriptors are immutable value objects. Status is operational and changes independently. |
 
 ## Files to Modify
@@ -188,7 +204,7 @@ Details in `tasks.md`.
 | File | Change |
 |------|--------|
 | `src/MsClaw.Gateway/Services/AgentMessageService.cs` | Inject `IToolCatalog` + `IToolExpander`; populate `SessionConfig.Tools` in `GetOrCreateSessionAsync` |
-| `src/MsClaw.Gateway/Extensions/GatewayServiceExtensions.cs` | Register `ToolBridge` (singleton for both interfaces), `ToolExpander`, `ToolBridgeHostedService` |
+| `src/MsClaw.Gateway/Extensions/GatewayServiceExtensions.cs` | Register `ToolCatalogStore` (singleton), `ToolBridge` as `IToolCatalog` (singleton), `ToolRegistrar` as `IToolRegistrar` (singleton), `ToolExpander`, `ToolBridgeHostedService` |
 
 ## New Files
 
@@ -197,13 +213,18 @@ Details in `tasks.md`.
 | `Services/Tools/IToolProvider.cs` | Provider interface with discover + change signal |
 | `Services/Tools/IToolCatalog.cs` | Read-side catalog interface |
 | `Services/Tools/IToolRegistrar.cs` | Write-side registrar interface |
-| `Services/Tools/IToolExpander.cs` | Session-aware expander interface |
+| `Services/Tools/IToolExpander.cs` | Session-aware expander interface + `SessionHolder` |
 | `Services/Tools/ToolDescriptor.cs` | Immutable record + `ToolSourceTier` + `ToolStatus` enums |
-| `Services/Tools/ToolBridge.cs` | Singleton catalog + registrar implementation |
+| `Services/Tools/ToolCatalogStore.cs` | Internal shared data structure — `ConcurrentDictionary` + status map + provider index |
+| `Services/Tools/ToolBridge.cs` | `IToolCatalog` implementation — read-side catalog over `ToolCatalogStore` |
+| `Services/Tools/ToolRegistrar.cs` | `IToolRegistrar` implementation — write-side registry over `ToolCatalogStore` |
 | `Services/Tools/ToolExpander.cs` | Per-session `expand_tools` factory |
-| `Services/Tools/ToolBridgeHostedService.cs` | Registers providers at startup, runs change loops |
-| Tests: `ToolBridgeTests.cs` | ToolBridge unit tests |
+| `Services/Tools/ToolBridgeHostedService.cs` | Registers providers at startup, owns per-provider watch loops |
+| Tests: `ToolCatalogStoreTests.cs` | Shared store unit tests |
+| Tests: `ToolBridgeTests.cs` | Catalog read-side unit tests |
+| Tests: `ToolRegistrarTests.cs` | Registration, collision, priority, refresh, teardown tests |
 | Tests: `ToolExpanderTests.cs` | ToolExpander unit tests |
+| Tests: `ToolBridgeHostedServiceTests.cs` | Watch loop and startup registration tests |
 
 ## Verification
 

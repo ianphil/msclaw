@@ -72,15 +72,21 @@ Contract for any tool source.
 
 ### SessionHolder
 
-Deferred binding wrapper for session reference in expand_tools closure.
+Thread-safe deferred binding wrapper for session reference in expand_tools closure. Uses `TaskCompletionSource<IGatewaySession>` to eliminate race conditions.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| Session | `IGatewaySession` | No | `null` | Set after `CreateSessionAsync` completes |
+| _tcs | `TaskCompletionSource<IGatewaySession>` | Yes | `new()` | Internal completion source |
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| Bind(session) | `void` | Calls `_tcs.SetResult(session)` — unblocks awaiting callers |
+| GetSessionAsync() | `Task<IGatewaySession>` | Returns immediately if bound, otherwise awaits binding |
 
 **Invariants:**
-- `Session` is null until after session creation
-- `expand_tools` checks for null and returns error if invoked before binding
+- `Bind` must be called exactly once; second call throws `InvalidOperationException` (TCS guarantee)
+- `GetSessionAsync` is safe to call from any thread — `TaskCompletionSource` handles synchronization
+- `expand_tools` `await`s `GetSessionAsync()` — no null checks needed
 
 ## State Transitions
 

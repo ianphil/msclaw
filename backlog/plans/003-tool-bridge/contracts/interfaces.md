@@ -135,10 +135,19 @@ public interface IToolExpander
 ### SessionHolder
 
 ```csharp
-/// <summary>Deferred session binding for expand_tools closure.</summary>
+/// <summary>Thread-safe deferred session binding for expand_tools closure.
+/// Uses TaskCompletionSource to eliminate race conditions between session
+/// creation and expand_tools invocation.</summary>
 public sealed class SessionHolder
 {
-    /// <summary>Set after CreateSessionAsync completes.</summary>
-    public IGatewaySession? Session { get; set; }
+    private readonly TaskCompletionSource<IGatewaySession> _tcs = new();
+
+    /// <summary>Bind the session after CreateSessionAsync completes.
+    /// Unblocks any expand_tools invocations awaiting the session.</summary>
+    public void Bind(IGatewaySession session) => _tcs.SetResult(session);
+
+    /// <summary>Await the session. Returns immediately if already bound,
+    /// otherwise blocks until Bind is called.</summary>
+    public Task<IGatewaySession> GetSessionAsync() => _tcs.Task;
 }
 ```
