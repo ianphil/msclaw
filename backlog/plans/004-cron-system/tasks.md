@@ -85,34 +85,34 @@ Implement in-memory-cached job store with atomic disk flush, and separate run hi
 Implement `ICronJobExecutor` abstraction, both executor implementations, error classifier interface, schedule calculator, and stagger calculator.
 
 ### Executor Interface
-- [ ] T023 [IMPL] Define `ICronJobExecutor` interface in `Services/Cron/ICronJobExecutor.cs` with `PayloadType` property and `ExecuteAsync` method
+- [x] T023 [IMPL] Define `ICronJobExecutor` interface in `Services/Cron/ICronJobExecutor.cs` with `PayloadType` property and `ExecuteAsync` method
 
 ### PromptJobExecutor
-- [ ] T024 [TEST] Write test: `PromptJobExecutor.PayloadType` returns `typeof(PromptPayload)`
-- [ ] T025 [TEST] Write test: `ExecuteAsync` with `PromptPayload` calls `SessionPool.GetOrCreateAsync` with key `"cron:{jobId}:{runId}"`, sends prompt via `session.SendAsync`, returns `CronRunResult` with Success
-- [ ] T026 [TEST] Write test: `ExecuteAsync` with `preloadToolNames` populates `SessionConfig.Tools` with tools fetched from `IToolCatalog.GetToolsByName`
-- [ ] T027 [TEST] Write test: `ExecuteAsync` that throws → returns `CronRunResult` with Failure outcome and error message
-- [ ] T028 [IMPL] Implement `PromptJobExecutor` — inject `ISessionPool`, `IGatewayClient`, `IGatewayHostedService`, `IToolCatalog`; create isolated session via factory, send prompt, bridge events to collect `AssistantMessageEvent.Content`, wait for `SessionIdleEvent`, return result, remove session from pool
+- [x] T024 [TEST] Write test: `PromptJobExecutor.PayloadType` returns `typeof(PromptPayload)`
+- [x] T025 [TEST] Write test: `ExecuteAsync` with `PromptPayload` calls `SessionPool.GetOrCreateAsync` with key `"cron:{jobId}:{runId}"`, sends prompt via `session.SendAsync`, returns `CronRunResult` with Success
+- [x] T026 [TEST] Write test: `ExecuteAsync` with `preloadToolNames` populates `SessionConfig.Tools` with tools fetched from `IToolCatalog.GetToolsByName`
+- [x] T027 [TEST] Write test: `ExecuteAsync` that throws → returns `CronRunResult` with Failure outcome and error message
+- [x] T028 [IMPL] Implement `PromptJobExecutor` — inject `ISessionPool`, `IGatewayClient`, `IGatewayHostedService`, `IToolCatalog`; create isolated session via factory, send prompt, bridge events to collect `AssistantMessageEvent.Content`, wait for `SessionIdleEvent`, return result, remove session from pool
 
 ### CommandJobExecutor
-- [ ] T029 [TEST] Write test: `CommandJobExecutor.PayloadType` returns `typeof(CommandPayload)`
-- [ ] T030 [TEST] Write test: `ExecuteAsync` with `CommandPayload` starts a process with the command and arguments, captures stdout
-- [ ] T031 [TEST] Write test: `ExecuteAsync` where process exceeds `timeoutSeconds` → kills process, returns Failure with timeout message
-- [ ] T032 [IMPL] Implement `CommandJobExecutor` — `Process.Start()` with `RedirectStandardOutput/Error`, `WaitForExitAsync` with timeout, `Kill()` on timeout, return `CronRunResult`
+- [x] T029 [TEST] Write test: `CommandJobExecutor.PayloadType` returns `typeof(CommandPayload)`
+- [x] T030 [TEST] Write test: `ExecuteAsync` with `CommandPayload` starts a process with the command and arguments, captures stdout
+- [x] T031 [TEST] Write test: `ExecuteAsync` where process exceeds `timeoutSeconds` → kills process, returns Failure with timeout message
+- [x] T032 [IMPL] Implement `CommandJobExecutor` — `Process.Start()` with `RedirectStandardOutput/Error`, `WaitForExitAsync` with timeout, `Kill()` on timeout, return `CronRunResult`
 
 ### ICronErrorClassifier (Interface, Not Static)
-- [ ] T033 [TEST] Write test: `DefaultCronErrorClassifier` implements `ICronErrorClassifier`. `IsTransient` returns true for `HttpRequestException`, `TaskCanceledException`, `IOException`; returns false for `UnauthorizedAccessException`, `ArgumentException`, `JsonException`
-- [ ] T034 [IMPL] Define `ICronErrorClassifier` interface in `Services/Cron/ICronErrorClassifier.cs`. Implement `DefaultCronErrorClassifier` class with `IsTransient(Exception)` method
+- [x] T033 [TEST] Write test: `DefaultCronErrorClassifier` implements `ICronErrorClassifier`. `IsTransient` returns true for `HttpRequestException`, `TaskCanceledException`, `IOException`; returns false for `UnauthorizedAccessException`, `ArgumentException`, `JsonException`
+- [x] T034 [IMPL] Define `ICronErrorClassifier` interface in `Services/Cron/ICronErrorClassifier.cs`. Implement `DefaultCronErrorClassifier` class with `IsTransient(Exception)` method
 
 ### CronScheduleCalculator (Pure Static Helper)
-- [ ] T035 [TEST] Write test: `CronScheduleCalculator.ComputeNextRun` with `OneShotSchedule` → returns `fireAtUtc` when not yet passed; returns `null` after execution
-- [ ] T036 [TEST] Write test: `CronScheduleCalculator.ComputeNextRun` with `FixedIntervalSchedule` → returns `lastRunAtUtc + intervalMs`; returns `now` if never run
-- [ ] T037 [TEST] Write test: `CronScheduleCalculator.ComputeNextRun` with `CronExpressionSchedule` → returns next occurrence via Cronos with timezone
-- [ ] T038 [IMPL] Implement `CronScheduleCalculator` static class in `Services/Cron/CronScheduleCalculator.cs` — switch on schedule type, use Cronos for cron expressions
+- [x] T035 [TEST] Write test: `CronScheduleCalculator.ComputeNextRun` with `OneShotSchedule` → returns `fireAtUtc` when not yet passed; returns `null` after execution
+- [x] T036 [TEST] Write test: `CronScheduleCalculator.ComputeNextRun` with `FixedIntervalSchedule` → returns `lastRunAtUtc + intervalMs`; returns `now` if never run
+- [x] T037 [TEST] Write test: `CronScheduleCalculator.ComputeNextRun` with `CronExpressionSchedule` → returns next occurrence via Cronos with timezone
+- [x] T038 [IMPL] Implement `CronScheduleCalculator` static class in `Services/Cron/CronScheduleCalculator.cs` — switch on schedule type, use Cronos for cron expressions
 
 ### CronStaggerCalculator (Pure Static Helper)
-- [ ] T039 [TEST] Write test: two recurring jobs with identical cron expressions get different stagger offsets from `CronStaggerCalculator.ComputeOffset`. Same job always gets same offset (deterministic hash).
-- [ ] T040 [IMPL] Implement `CronStaggerCalculator` static class in `Services/Cron/CronStaggerCalculator.cs` — hash job ID, modulo stagger window (default 0–5 minutes)
+- [x] T039 [TEST] Write test: two recurring jobs with identical cron expressions get different stagger offsets from `CronStaggerCalculator.ComputeOffset`. Same job always gets same offset (deterministic hash).
+- [x] T040 [IMPL] Implement `CronStaggerCalculator` static class in `Services/Cron/CronStaggerCalculator.cs` — hash job ID, modulo stagger window (default 0–5 minutes)
 
 ## Phase 4: CronEngine
 
