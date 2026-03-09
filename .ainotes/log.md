@@ -43,3 +43,11 @@
 - reliability: SessionPool.ReapExpiredSessions must not sync-over-async — `Timer` callbacks can't await, so fire-and-forget via `Task.Run` with per-session try/catch prevents process crashes and deadlocks.
 - testing: DevTunnelLocator now accepts ICommandRunner for deterministic testing — same pattern should be applied to CliLocator in the future.
 - convention: MindPaths.ArchiveDir must be "Archive" (capital A) to match docs and IDEA taxonomy. TempMindFixture already used "Archive".
+
+## 2026-03-09
+- planning: Tool Bridge feature (003) uses CQRS-style interface split — IToolCatalog (read) and IToolRegistrar (write) backed by a single ToolBridge singleton. This avoids synchronization issues while enforcing access separation at the consumer level.
+- sdk: ResumeSessionAsync accepts Tools in ResumeSessionConfig, enabling lazy tool addition to existing sessions. expand_tools uses this for incremental session growth.
+- sdk: Setting AvailableTools on SessionConfig creates a whitelist across ALL tools including CLI built-ins — never use it. Register only the tools you want; CLI built-ins stay visible by default.
+- design: expand_tools needs the session reference but the session needs expand_tools in its config — solved with deferred binding via SessionHolder wrapper and mutable tool list captured in closure.
+- design: Same-tier tool name collision is a hard error (InvalidOperationException), intentionally stricter than spec (which says log and skip). Makes DI registration order irrelevant.
+- reference: Copilot SDK source available at C:\src\copilot-sdk for verifying API contracts during implementation.
