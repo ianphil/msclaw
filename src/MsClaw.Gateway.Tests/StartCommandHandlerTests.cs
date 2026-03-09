@@ -61,6 +61,29 @@ public class StartCommandHandlerTests
     }
 
     [Fact]
+    public async Task ExecuteStartAsync_TildePath_ExpandsToUserProfile()
+    {
+        GatewayOptions? captured = null;
+        var scaffold = new StubMindScaffold(static () => { });
+
+        _ = await StartCommand.ExecuteStartAsync(
+            "~/src/ernist",
+            null,
+            (options, cancellationToken) =>
+            {
+                captured = options;
+                return Task.FromResult(0);
+            },
+            scaffold,
+            cancellationToken: CancellationToken.None);
+
+        Assert.NotNull(captured);
+        var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var expected = Path.GetFullPath(Path.Combine(home, "src", "ernist"));
+        Assert.Equal(expected, captured.MindPath);
+    }
+
+    [Fact]
     public async Task ExecuteStartAsync_TunnelEnabledWithoutLogin_Throws()
     {
         var scaffold = new StubMindScaffold(static () => { });

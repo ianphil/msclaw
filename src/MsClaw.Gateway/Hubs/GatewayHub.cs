@@ -64,8 +64,7 @@ public sealed class GatewayHub(
     /// </summary>
     public async Task AbortResponse(CancellationToken cancellationToken)
     {
-        var session = GetCallerSession();
-        await session.AbortAsync(cancellationToken);
+        await messageService.AbortAsync(Context.ConnectionId, cancellationToken);
     }
 
     /// <summary>

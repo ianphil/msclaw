@@ -14,4 +14,9 @@ public interface IConcurrencyGate
     /// Releases the caller's previously acquired slot.
     /// </summary>
     void Release(string callerKey);
+
+    /// <summary>
+    /// Releases the caller's slot if it is currently held. Returns true if released, false if already free.
+    /// </summary>
+    bool TryRelease(string callerKey);
 }

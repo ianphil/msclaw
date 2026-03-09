@@ -8,6 +8,10 @@
 - design: expand_tools needs the session reference but the session needs expand_tools in its config — solved with deferred binding via SessionHolder wrapper and mutable tool list captured in closure.
 - design: Same-tier tool name collision is a hard error (InvalidOperationException), intentionally stricter than spec (which says log and skip). Makes DI registration order irrelevant.
 - reference: Copilot SDK source available at C:\src\copilot-sdk for verifying API contracts during implementation.
+- bug: Windows Path.GetFullPath("~/path") treats ~ as a literal directory name, not home. CLI args need explicit ExpandHome before GetFullPath.
+- bug: SignalR abort race condition — AbortResponse cancelled the CTS but the SendAsync generator's finally block (gate release) ran asynchronously. Next message arrived before gate was freed. Fix: idempotent TryRelease + abort force-releases the gate.
+- ui: SignalR JS client subscription.dispose() stops delivering events to callbacks but the server stream continues until CancelInvocation arrives. Dispose subscription BEFORE awaiting server-side AbortResponse for instant UI feedback.
+- concurrency: ConcurrencyGate (CallerRegistry) needs both strict Release (throws on double-release) for normal flow and idempotent TryRelease for abort/cleanup paths.
 - planning: Decomposed single ToolBridge singleton into three classes — ToolCatalogStore (shared ConcurrentDictionary), ToolBridge (IToolCatalog read), ToolRegistrar (IToolRegistrar write). SRP wins: catalog lookups and provider registration change for different reasons.
 - planning: SessionHolder upgraded from nullable property to TaskCompletionSource<IGatewaySession> — eliminates race conditions between session creation and expand_tools invocation. Callers await rather than null-check.
 - planning: WaitForSurfaceChangeAsync watch loops moved from registrar to ToolBridgeHostedService — mutation driver (hosted service) separated from mutation executor (registrar) for testability.

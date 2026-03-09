@@ -188,9 +188,13 @@
 
         abortButton.addEventListener("click", async () => {
             try {
+                if (activeSubscription) {
+                    activeSubscription.dispose();
+                    activeSubscription = null;
+                }
+                finalizeAssistantMessage();
                 await ensureConnected();
                 await connection.invoke("AbortResponse");
-                if (activeSubscription) activeSubscription.dispose();
                 appendActivity("Abort requested.", "warning");
             } catch (error) {
                 appendActivity(`Abort failed: ${error.message}`, "error");
