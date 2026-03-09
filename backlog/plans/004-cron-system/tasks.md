@@ -61,24 +61,24 @@ Define record types, enums, and value objects. No behavior — just data structu
 Implement in-memory-cached job store with atomic disk flush, and separate run history store.
 
 ### ICronJobStore — In-Memory Cache with Atomic Flush
-- [ ] T011 [TEST] Write test: `InitializeAsync` from empty state (no `jobs.json`) → `GetAllJobsAsync` returns empty list
-- [ ] T012 [TEST] Write test: `AddJobAsync` → flush to disk → new `CronJobStore` instance `InitializeAsync` → `GetJobAsync` returns the job (round-trip through disk)
-- [ ] T013 [IMPL] Implement `ICronJobStore` interface in `Services/Cron/ICronJobStore.cs` with `InitializeAsync`, `GetAllJobsAsync`, `GetJobAsync`, `AddJobAsync`, `UpdateJobAsync`, `RemoveJobAsync`. Implement `CronJobStore` class with `ConcurrentDictionary<string, CronJob>` in-memory cache and `SemaphoreSlim(1,1)` for serialized flush.
+- [x] T011 [TEST] Write test: `InitializeAsync` from empty state (no `jobs.json`) → `GetAllJobsAsync` returns empty list
+- [x] T012 [TEST] Write test: `AddJobAsync` → flush to disk → new `CronJobStore` instance `InitializeAsync` → `GetJobAsync` returns the job (round-trip through disk)
+- [x] T013 [IMPL] Implement `ICronJobStore` interface in `Services/Cron/ICronJobStore.cs` with `InitializeAsync`, `GetAllJobsAsync`, `GetJobAsync`, `AddJobAsync`, `UpdateJobAsync`, `RemoveJobAsync`. Implement `CronJobStore` class with `ConcurrentDictionary<string, CronJob>` in-memory cache and `SemaphoreSlim(1,1)` for serialized flush.
 
 ### Atomic Writes
-- [ ] T014 [TEST] Write test: `AddJobAsync` writes to temp file then renames — verify no partial writes (file exists after add, content is complete JSON)
-- [ ] T015 [IMPL] Implement atomic write-temp-then-rename in `CronJobStore` flush method (private), called after every mutation
+- [x] T014 [TEST] Write test: `AddJobAsync` writes to temp file then renames — verify no partial writes (file exists after add, content is complete JSON)
+- [x] T015 [IMPL] Implement atomic write-temp-then-rename in `CronJobStore` flush method (private), called after every mutation
 
 ### CRUD Operations
-- [ ] T016 [TEST] Write test: `AddJobAsync` adds a job → `GetJobAsync` returns it from in-memory cache. Adding a job with duplicate ID throws `InvalidOperationException`
-- [ ] T017 [TEST] Write test: `UpdateJobAsync` modifies an existing job → `GetJobAsync` reflects changes. Updating non-existent job throws `InvalidOperationException`
-- [ ] T018 [TEST] Write test: `RemoveJobAsync` removes a job → `GetJobAsync` returns null. Removing non-existent job is a no-op
-- [ ] T019 [IMPL] Implement `AddJobAsync`, `UpdateJobAsync`, `RemoveJobAsync`, `GetJobAsync`, `GetAllJobsAsync` using in-memory `ConcurrentDictionary` with flush-on-mutate
+- [x] T016 [TEST] Write test: `AddJobAsync` adds a job → `GetJobAsync` returns it from in-memory cache. Adding a job with duplicate ID throws `InvalidOperationException`
+- [x] T017 [TEST] Write test: `UpdateJobAsync` modifies an existing job → `GetJobAsync` reflects changes. Updating non-existent job throws `InvalidOperationException`
+- [x] T018 [TEST] Write test: `RemoveJobAsync` removes a job → `GetJobAsync` returns null. Removing non-existent job is a no-op
+- [x] T019 [IMPL] Implement `AddJobAsync`, `UpdateJobAsync`, `RemoveJobAsync`, `GetJobAsync`, `GetAllJobsAsync` using in-memory `ConcurrentDictionary` with flush-on-mutate
 
 ### ICronRunHistoryStore — Per-Job History (ISP Split)
-- [ ] T020 [TEST] Write test: `AppendRunRecordAsync` creates history file for new job → `GetRunHistoryAsync` returns the record. Verify these methods are on `ICronRunHistoryStore` interface (not `ICronJobStore`)
-- [ ] T021 [TEST] Write test: `AppendRunRecordAsync` with history exceeding line limit → old records pruned
-- [ ] T022 [IMPL] Implement `ICronRunHistoryStore` interface in `Services/Cron/ICronRunHistoryStore.cs`. Implement `AppendRunRecordAsync` and `GetRunHistoryAsync` in `CronJobStore` (which implements both `ICronJobStore` and `ICronRunHistoryStore`) with per-job JSON files in `history/` subdirectory and auto-pruning
+- [x] T020 [TEST] Write test: `AppendRunRecordAsync` creates history file for new job → `GetRunHistoryAsync` returns the record. Verify these methods are on `ICronRunHistoryStore` interface (not `ICronJobStore`)
+- [x] T021 [TEST] Write test: `AppendRunRecordAsync` with history exceeding line limit → old records pruned
+- [x] T022 [IMPL] Implement `ICronRunHistoryStore` interface in `Services/Cron/ICronRunHistoryStore.cs`. Implement `AppendRunRecordAsync` and `GetRunHistoryAsync` in `CronJobStore` (which implements both `ICronJobStore` and `ICronRunHistoryStore`) with per-job JSON files in `history/` subdirectory and auto-pruning
 
 ## Phase 3: Executors and Helpers
 

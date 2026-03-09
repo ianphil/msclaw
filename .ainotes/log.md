@@ -38,3 +38,4 @@
 - cron: Discriminated JobPayload design (PromptPayload vs CommandPayload) with pluggable ICronJobExecutor — new job types require zero engine changes, just a new executor + payload variant.
 - cron: CommandPayload enables deterministic work (shell commands) without LLM sessions or token cost. PromptPayload creates isolated sessions via SessionPool with full tool surface.
 - testing: Record equality on array-typed payloads is reference-based, so JSON round-trip tests should compare array contents instead of whole-record equality.
+- cron: Phase 2 persistence uses in-memory canonical state plus atomic write-temp-then-rename for `jobs.json`, while run history is split behind `ICronRunHistoryStore` into per-job files with pruning.
