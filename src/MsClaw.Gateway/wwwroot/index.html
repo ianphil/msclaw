@@ -77,6 +77,8 @@
 
         let activeSubscription = null;
         let activeAssistantMessage = null;
+        let activeRunSpine = null;
+        let activeToolChips = {};
         let authContext = window.__AUTH_CONTEXT;
 
         // ─── Textarea: auto-resize + Enter to send ───
@@ -167,6 +169,7 @@
             try {
                 await ensureConnected();
                 appendMessage("user", prompt);
+                activeRunSpine = createRunSpine();
                 activeAssistantMessage = appendMessage("assistant", "");
                 appendActivity("Run started.", "info");
                 promptInput.value = "";
@@ -177,14 +180,16 @@
                     next: (sessionEvent) => handleSessionEvent(sessionEvent),
                     complete: () => {
                         appendActivity("Run complete.", "success");
-                        finalizeAssistantMessage();
+                        finalizeRun();
                         setRunActive(false);
                     },
                     error: (error) => {
                         appendActivity(`Run failed: ${error.message}`, "error");
+                        appendSpineChip("error", error.message);
                         if (activeAssistantMessage && !activeAssistantMessage.textContent.trim()) {
                             activeAssistantMessage.textContent = "The run failed before any assistant text was returned.";
                         }
+                        finalizeRun();
                         setRunActive(false);
                     }
                 });
@@ -202,7 +207,8 @@
                     activeSubscription.dispose();
                     activeSubscription = null;
                 }
-                finalizeAssistantMessage();
+                appendSpineChip("warning", "Aborted");
+                finalizeRun();
                 await ensureConnected();
                 await connection.invoke("AbortResponse");
                 appendActivity("Abort requested.", "warning");
@@ -232,6 +238,8 @@
             conversation.innerHTML = "";
             activityLog.innerHTML = "";
             activeAssistantMessage = null;
+            activeRunSpine = null;
+            activeToolChips = {};
         });
 
         // ─── Initialize ───
@@ -274,6 +282,12 @@
             const fullContent = readValue(data, "content", "Content");
             const message = readValue(data, "message", "Message");
             const errorType = readValue(data, "errorType", "ErrorType");
+            const toolName = readValue(data, "toolName", "ToolName")
+                ?? readValue(data, "name", "Name");
+            const toolId = readValue(data, "toolExecutionId", "ToolExecutionId")
+                ?? readValue(data, "id", "Id")
+                ?? toolName;
+            const durationMs = readValue(data, "durationMs", "DurationMs");
 
             const isNoise = eventType === "session.idle"
                 || eventType === "pending_messages.modified"
@@ -285,6 +299,32 @@
             if (!isNoise) {
                 appendActivity(eventType || "event", "info", sessionEvent);
             }
+
+            // ─── Spine chips for live progress ───
+
+            if (eventType === "assistant.turn_start") {
+                appendSpineChip("thinking", "Thinking…");
+            }
+
+            if (eventType === "tool.execution_start" && toolName) {
+                const chipId = appendSpineChip("tool", `Running ${toolName}…`);
+                if (toolId) activeToolChips[toolId] = chipId;
+            }
+
+            if (eventType === "tool.execution_complete" && toolId && activeToolChips[toolId]) {
+                const chip = document.getElementById(activeToolChips[toolId]);
+                if (chip) {
+                    const suffix = durationMs != null ? ` (${durationMs}ms)` : "";
+                    chip.querySelector(".spine-chip-label").textContent = `✓ ${toolName ?? "tool"}${suffix}`;
+                    chip.classList.add("spine-chip-done");
+                }
+            }
+
+            if (eventType === "session.error") {
+                appendSpineChip("error", message ?? "Error");
+            }
+
+            // ─── Assistant message: update bubble ───
 
             if (eventType === "assistant.message" && typeof fullContent === "string" && fullContent.length > 0) {
                 activeAssistantMessage.innerHTML = marked.parse(fullContent);
@@ -300,15 +340,50 @@
             }
         }
 
-        function finalizeAssistantMessage() {
+        function finalizeRun() {
             if (activeAssistantMessage && !activeAssistantMessage.textContent.trim()) {
                 activeAssistantMessage.textContent = "No assistant text was returned for this run.";
             }
+            if (activeRunSpine) {
+                activeRunSpine.classList.add("spine-done");
+            }
             activeAssistantMessage = null;
             activeSubscription = null;
+            activeRunSpine = null;
+            activeToolChips = {};
         }
 
         // ─── UI helpers ───
+
+        let spineChipCounter = 0;
+
+        function createRunSpine() {
+            const spine = document.createElement("div");
+            spine.className = "run-spine";
+            conversation.prepend(spine);
+            scrollConversationToTop();
+            return spine;
+        }
+
+        function appendSpineChip(tone, text) {
+            if (!activeRunSpine) return null;
+            const chipId = `spine-chip-${++spineChipCounter}`;
+            const chip = document.createElement("div");
+            chip.className = `spine-chip spine-chip-${tone}`;
+            chip.id = chipId;
+
+            const dot = document.createElement("span");
+            dot.className = "spine-chip-dot";
+
+            const label = document.createElement("span");
+            label.className = "spine-chip-label";
+            label.textContent = text;
+
+            chip.append(dot, label);
+            activeRunSpine.appendChild(chip);
+            scrollConversationToTop();
+            return chipId;
+        }
 
         function setRunActive(isActive) {
             sendButton.disabled = isActive;
