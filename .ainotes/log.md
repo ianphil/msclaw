@@ -51,3 +51,11 @@
 - resilience: File.Delete in finally blocks can throw IOException (e.g., antivirus lock on Windows), masking the real exception. Always guard cleanup I/O with try/catch.
 - ui: IGatewayHubClient server→client callbacks need matching `connection.on()` handlers in index.html — new hub methods are invisible to the browser until a JS handler is registered.
 - ui: Activity log tones (info/success/warning/error/cron) map to CSS border-left colors via `.activity-{tone}` classes. New event channels just need a CSS class and a `connection.on()` handler.
+
+## 2026-03-10
+- ui: Mobile viewport blow-out caused by off-screen drawer (400px, translateX(100%)) — fixed with visibility:hidden when closed so it doesn't expand the document width.
+- ui: iOS auto-zoom on textarea focus triggered when font-size < 16px — force 16px in mobile media query.
+- ui: 100dvh (dynamic viewport height) handles iOS address bar collapse better than 100vh for full-screen layouts.
+- ui: touch-action:manipulation on buttons prevents double-tap-zoom delay on mobile without disabling pinch-zoom globally.
+- sdk: Copilot SDK has 58 SessionEvent subclasses with JSON discriminator on "type" property. Key tool events: tool.execution_start, tool.execution_progress, tool.execution_complete. Assistant events: assistant.turn_start, assistant.streaming_delta, assistant.message_delta, assistant.message.
+- ui: Gateway UI streams with Streaming=true but JS filters out all delta events as "noise" — only final assistant.message updates the bubble. Intermediate assistant.message events overwrite each other in the same div, creating a flash-and-replace effect during multi-step agent runs.
